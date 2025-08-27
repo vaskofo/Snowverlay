@@ -23,7 +23,7 @@ const IS_DEV = true; // Use an environment variable in a real app
 export async function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 500,        // Set a small, fixed width
-    height: 360,       // Set a small, fixed height
+    height: 365,       // Set a small, fixed height
     transparent: true, // Enable transparency
     frame: false,      // Remove the window frame for a custom look
     webPreferences: {
@@ -31,7 +31,7 @@ export async function createMainWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: false,
-      devTools: false
+      //devTools: false
     },
     autoHideMenuBar: true,
   });
@@ -41,7 +41,7 @@ export async function createMainWindow() {
   
   // This function is for handling environment-specific tools like DevTools.
   const handleEnvironmentTools = () => {
-      Menu.setApplicationMenu(null);
+      //Menu.setApplicationMenu(null);
   };
 
   // ----------------------------------------------------------------------

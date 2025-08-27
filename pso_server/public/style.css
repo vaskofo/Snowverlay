@@ -10,6 +10,9 @@ html, body {
     color: #e0e0e0;
     font-size: 12px;
     box-sizing: border-box;
+    transition: height 0.3s ease-in-out;
+    border: #74747440 1px solid;
+    border-radius: 10px;
 }
 
 /* Main container using flexbox for a vertical layout */
@@ -17,8 +20,17 @@ html, body {
     display: flex;
     flex-direction: column;
     height: 100%;
-    padding: 5px;
+    padding: 0px;
     box-sizing: border-box;
+    /* NEW: Add a transition for the container height */
+    transition: height 0.3s ease-in-out;
+}
+
+/* NEW: Class for the minimized state */
+.main-container.minimized {
+    /* Height is just enough for the controls bar + padding */
+    height: 38px;
+    padding-bottom: 0;
 }
 
 /* Controls (Buttons and Title) */
@@ -29,7 +41,6 @@ html, body {
     align-items: center; /* Vertically align items */
     justify-content: space-between; /* Space out the title and buttons */
     gap: 5px;
-    margin-bottom: 5px;
     flex-shrink: 0;
     /* NEW: Added background and padding to the control bar itself */
     padding: 5px 10px;
@@ -79,7 +90,16 @@ html, body {
     overflow-x: auto; /* Enable horizontal scrolling for columns if needed */
     overflow-y: hidden; /* Prevent vertical scrolling on this container */
     min-width: 0; /* Ensures container doesn't overflow its parent */
-    padding-bottom: 5px; /* Add some space at the bottom */
+    /* NEW: Add transition for smooth height changes */
+    transition: height 0.3s ease-in-out, margin 0.3s ease-in-out, opacity 0.3s ease-in-out;
+}
+/* NEW: Hide the columns container when minimized */
+.main-container.minimized .columns-container {
+    height: 0;
+    padding-bottom: 0;
+    margin-top: -5px; /* Adjust for the margin-bottom on controls */
+    opacity: 0;
+    pointer-events: none; /* Disable interaction with the hidden content */
 }
 
 /* Hide scrollbar for the columns container for aesthetic purposes */
@@ -109,7 +129,8 @@ html, body {
     display: flex;
     flex-direction: column;
     padding: 6px 6px 8px 6px;
-    margin-bottom: 4px;
+    margin-top: 4px;
+    margin-bottom: 0px;
     border-radius: 6px;
     background: rgba(0, 0, 0, 0.5);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
@@ -121,7 +142,7 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 
 .player-info {
@@ -129,6 +150,7 @@ html, body {
     flex-grow: 1;
     justify-content: space-between;
     min-width: 0;
+    border-bottom: 1px solid #ffffff50;
 }
 
 .name {
@@ -220,7 +242,7 @@ html, body {
 }
 
 .hps-bar-row {
-    height: 14px;
+    height: 15px;
 }
 .hps-bar-fill {
     background-color: var(--color-hps);

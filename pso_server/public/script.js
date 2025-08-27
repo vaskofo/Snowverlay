@@ -1,13 +1,33 @@
 const classTranslationMap = {
     "巨刃守护者": "Heavy Guardian",
+    "未知岩盾": "Heavy Guardian",
     "神盾骑士": "Shield Knight",
+    "未知光盾": "Shield Knight",
     "雷影剑士": "Stormblade",
+    "未知居合": "Stormblade (Laido Spec)",
     "冰霜法师": "Frost Mage",
+    "导师": "Frost Mage",
     "射手": "Marksman",
+    "未知狼弓": "Marksman",
     "灵魂乐": "Soul Musician",
     "森语者": "Verdant Oracle",
     "青岚骑士": "Wind Knight"
 };
+
+// Define an array of visually distinct hues for rotation
+const colorHues = [
+    210, // Blue
+    30,  // Orange
+    270, // Purple
+    150, // Teal
+    330, // Magenta
+    60,  // Yellow
+    180, // Cyan
+    0,   // Red
+    240  // Indigo
+];
+
+let colorIndex = 0;
 
 function translateProfession(profession) {
     // Find a key in the map that is contained within the profession string
@@ -20,11 +40,11 @@ function translateProfession(profession) {
     return profession;
 }
 
-function getRandomColorShades() {
-    let h;
-    do {
-        h = Math.floor(Math.random() * 360);
-    } while (h > 40 && h < 90);
+// NEW: Function to get the next color from the rotating list
+function getNextColorShades() {
+    const h = colorHues[colorIndex];
+    colorIndex = (colorIndex + 1) % colorHues.length; // Move to the next index, looping back if necessary
+    
     const s = 90;
     const l_dps = 30;
     const l_hps = 20;
@@ -44,6 +64,7 @@ let isPaused = false;
 let socket = null;
 let isWebSocketConnected = false;
 let lastWebSocketMessage = Date.now();
+let isMinimized = false;
 const WEBSOCKET_RECONNECT_INTERVAL = 5000;
 const MAX_ROWS_PER_COLUMN = 5; // The new row limit
 
@@ -76,7 +97,8 @@ function renderDataList(users) {
         const hpsPercent = totalHPS > 0 ? (user.total_hps / totalHPS) * 100 : 0;
 
         if (!userColors[user.id]) {
-            userColors[user.id] = getRandomColorShades();
+            // Use the new rotational color function
+            userColors[user.id] = getNextColorShades();
         }
         const colors = userColors[user.id];
 
@@ -118,7 +140,7 @@ function updateAll() {
 }
 
 function processDataUpdate(data) {
-    if (isPaused) return;
+    if (isPaused || isMinimized) return;
     if (!data.user) {
         console.warn('Received data without a "user" object:', data);
         return;
@@ -159,6 +181,23 @@ function togglePause() {
     isPaused = !isPaused;
     pauseButton.innerText = isPaused ? 'Resume' : 'Pause';
     showServerStatus(isPaused ? 'paused' : 'active');
+}
+
+// NEW: Function to toggle the minimized state
+function toggleMinimize() {
+    const mainContainer = document.querySelector('.main-container');
+    const minimizeButton = document.getElementById('minimizeButton');
+
+    isMinimized = !isMinimized;
+    if (isMinimized) {
+        mainContainer.classList.add('minimized');
+        minimizeButton.innerText = 'Open';
+        showServerStatus('minimized');
+    } else {
+        mainContainer.classList.remove('minimized');
+        minimizeButton.innerText = '_';
+        showServerStatus('active');
+    }
 }
 
 function showServerStatus(status) {
@@ -216,3 +255,4 @@ document.addEventListener('DOMContentLoaded', initialize);
 // Expose functions to the global scope for onclick attributes
 window.clearData = clearData;
 window.togglePause = togglePause;
+window.toggleMinimize = toggleMinimize; // NEW: Expose the minimize function
