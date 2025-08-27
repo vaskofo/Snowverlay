@@ -1,19 +1,3 @@
-const classTranslationMap = {
-    "巨刃守护者": "Heavy Guardian",
-    "未知岩盾": "Heavy Guardian",
-    "神盾骑士": "Shield Knight",
-    "未知光盾": "Shield Knight",
-    "雷影剑士": "Stormblade",
-    "未知居合": "Stormblade (Laido Spec)",
-    "冰霜法师": "Frost Mage",
-    "导师": "Frost Mage",
-    "射手": "Marksman",
-    "未知狼弓": "Marksman",
-    "灵魂乐": "Soul Musician",
-    "森语者": "Verdant Oracle",
-    "青岚骑士": "Wind Knight"
-};
-
 // Define an array of visually distinct hues for rotation
 const colorHues = [
     210, // Blue
@@ -29,18 +13,6 @@ const colorHues = [
 
 let colorIndex = 0;
 
-function translateProfession(profession) {
-    // Find a key in the map that is contained within the profession string
-    for (const chineseName in classTranslationMap) {
-        if (profession.includes(chineseName)) {
-            return classTranslationMap[chineseName];
-        }
-    }
-    // If no translation is found, return the original string
-    return profession;
-}
-
-// NEW: Function to get the next color from the rotating list
 function getNextColorShades() {
     const h = colorHues[colorIndex];
     colorIndex = (colorIndex + 1) % colorHues.length; // Move to the next index, looping back if necessary
@@ -66,7 +38,10 @@ let isWebSocketConnected = false;
 let lastWebSocketMessage = Date.now();
 let isMinimized = false;
 const WEBSOCKET_RECONNECT_INTERVAL = 5000;
-const MAX_ROWS_PER_COLUMN = 5; // The new row limit
+const MAX_ROWS_PER_COLUMN = 5;
+
+// This will be http://localhost:xxxx where xxxx is the correct dynamic port
+const SERVER_URL = window.location.origin;
 
 function formatNumber(num) {
     if (isNaN(num)) return 'NaN';
@@ -97,7 +72,6 @@ function renderDataList(users) {
         const hpsPercent = totalHPS > 0 ? (user.total_hps / totalHPS) * 100 : 0;
 
         if (!userColors[user.id]) {
-            // Use the new rotational color function
             userColors[user.id] = getNextColorShades();
         }
         const colors = userColors[user.id];
@@ -107,12 +81,17 @@ function renderDataList(users) {
         item.style.setProperty('--color-dps', colors.dps);
         item.style.setProperty('--color-hps', colors.hps);
         item.style.setProperty('--color-dps-shadow', colors.dps);
+        item.style.setProperty('--dps-percent', `${dpsPercent}%`);
+        item.style.setProperty('--hps-percent', `${hpsPercent}%`);
+
+        const isUnknown = user.name === "..." || user.name === "未知";
+        const professionDisplay = isUnknown || !user.profession ? '' : `<span class="class">${user.profession}</span>`;
 
         item.innerHTML = `
             <div class="player-header">
                 <div class="player-info">
-                    <span class="name">${user.name}</span>
-                    <span class="class">${user.profession}</span>
+                    <span class="name" title="${user.name}">${user.name}</span>
+                    ${professionDisplay}
                 </div>
             </div>
             <div class="bars-container">
@@ -145,22 +124,49 @@ function processDataUpdate(data) {
         console.warn('Received data without a "user" object:', data);
         return;
     }
+
     for (const userId in data.user) {
         const newUser = data.user[userId];
-        const translatedProfession = translateProfession(newUser.profession);
-        allUsers[userId] = {
-            ...allUsers[userId],
-            ...newUser,
-            id: userId,
-            profession: translatedProfession // Use the translated name
-        };
+        const existingUser = allUsers[userId] || {};
+
+        // Start with the existing user data to preserve old values
+        const updatedUser = { ...existingUser };
+
+        // Merge all properties from the new user data over the old
+        Object.assign(updatedUser, newUser);
+        updatedUser.id = userId; // Ensure ID is always set
+
+        // --- CORRECTED NAME & PROFESSION LOGIC ---
+        // A new name is only accepted if it's a non-empty string and not the Chinese "Unknown" placeholder.
+        const hasNewValidName = newUser.name && typeof newUser.name === 'string' && newUser.name !== "未知";
+        if (hasNewValidName) {
+            updatedUser.name = newUser.name;
+        } else if (!existingUser.name || existingUser.name === '...') {
+            // If there was no valid name before, set/keep the placeholder.
+            updatedUser.name = '...';
+        }
+        // If there's no new valid name, the existing valid name from the spread/assign is preserved.
+
+        // Only update the profession if the new data provides one.
+        const hasNewProfession = newUser.profession && typeof newUser.profession === 'string';
+        if (hasNewProfession) {
+            updatedUser.profession = newUser.profession;
+        } else if (!existingUser.profession) {
+            updatedUser.profession = '';
+        }
+        // If there's no new profession, the existing one is preserved.
+
+        allUsers[userId] = updatedUser;
     }
+    
     updateAll();
 }
 
+
 async function clearData() {
     try {
-        const response = await fetch('http://localhost:8990/api/clear');
+        // Use the dynamic SERVER_URL variable
+        const response = await fetch(`${SERVER_URL}/api/clear`);
         const result = await response.json();
 
         if (result.code === 0) {
@@ -183,7 +189,6 @@ function togglePause() {
     showServerStatus(isPaused ? 'paused' : 'active');
 }
 
-// NEW: Function to toggle the minimized state
 function toggleMinimize() {
     const mainContainer = document.querySelector('.main-container');
     const minimizeButton = document.getElementById('minimizeButton');
@@ -206,8 +211,8 @@ function showServerStatus(status) {
 }
 
 function connectWebSocket() {
-    const socketUrl = 'http://localhost:8990';
-    socket = io(socketUrl);
+    // Use the dynamic SERVER_URL variable
+    socket = io(SERVER_URL);
 
     socket.on('connect', () => {
         isWebSocketConnected = true;
@@ -219,15 +224,15 @@ function connectWebSocket() {
         isWebSocketConnected = false;
         showServerStatus('disconnected');
     });
-
+    
     socket.on('data', (data) => {
-        console.log(data);
         processDataUpdate(data);
         lastWebSocketMessage = Date.now();
     });
 
     socket.on('connect_error', (error) => {
         showServerStatus('disconnected');
+        console.error('WebSocket connection error:', error);
     });
 }
 
@@ -255,4 +260,4 @@ document.addEventListener('DOMContentLoaded', initialize);
 // Expose functions to the global scope for onclick attributes
 window.clearData = clearData;
 window.togglePause = togglePause;
-window.toggleMinimize = toggleMinimize; // NEW: Expose the minimize function
+window.toggleMinimize = toggleMinimize;

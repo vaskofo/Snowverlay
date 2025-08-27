@@ -10,25 +10,19 @@
     </head>
     <body>
         <div class="main-container">
-            <!-- UPDATED: The control bar now has a background and holds the title -->
             <div class="controls">
-                <!-- NEW: Container for the status icon and title -->
                 <div class="title-container">
                     <div id="serverStatus"></div>
                     <span class="app-title">BPSR-PSO</span>
                 </div>
-                <!-- The buttons are now aligned to the right -->
                 <div style="display: flex; gap: 5px;">
                     <button id="clearButton" onclick="clearData()">Clear</button>
                     <button id="pauseButton" onclick="togglePause()">Pause</button>
-                    <!-- NEW: Minimize button -->
                     <button id="minimizeButton" onclick="toggleMinimize()">_</button>
                 </div>
             </div>
-            <!-- The rest of the content remains the same -->
             <div id="columnsContainer" class="columns-container"></div>
         </div>
-
         <script src="script.js"></script>
     </body>
 </html>

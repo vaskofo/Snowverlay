@@ -1,5 +1,5 @@
-const { exec } = require('child_process');
-const cap = require('cap');
+import { exec } from 'child_process';
+import cap from 'cap';
 
 // Filter virtual adapters
 const VIRTUAL_KEYWORDS = ['zerotier', 'vmware', 'hyper-v', 'virtual', 'loopback', 'tap', 'bluetooth', 'wan miniport'];
@@ -110,4 +110,4 @@ async function findDefaultNetworkDevice(devices) {
     }
 }
 
-module.exports = findDefaultNetworkDevice;
+export default findDefaultNetworkDevice;
