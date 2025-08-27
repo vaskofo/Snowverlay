@@ -5,9 +5,8 @@
  * dragged by the user. It is no longer tied to a specific game process.
  */
 
-import { app, BrowserWindow, Menu, session } from 'electron';
+import { app, BrowserWindow, Menu } from 'electron';
 import path from 'path';
-import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 export let mainWindow;
@@ -32,6 +31,7 @@ export async function createMainWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: false,
+      devTools: false
     },
     autoHideMenuBar: true,
   });
@@ -39,37 +39,37 @@ export async function createMainWindow() {
   mainWindow.setAlwaysOnTop(true, 'normal');
   mainWindow.setMovable(true);
   
+  // This function is for handling environment-specific tools like DevTools.
   const handleEnvironmentTools = () => {
-    if (IS_DEV) {
-      mainWindow?.webContents.openDevTools();
-    } else {
       Menu.setApplicationMenu(null);
-    }
   };
 
+  // ----------------------------------------------------------------------
+  // MODIFIED SECTION
+  // The primary goal is to load the local server URL first.
+  // The local index.html is now the fallback.
+  // ----------------------------------------------------------------------
+  const indexPath = path.join(__dirname, 'index.html');
+
+  // Attempt to load the local server URL first.
   mainWindow.loadURL(APP_URL)
-    .then(async () => {
-      await session.defaultSession.clearCache();
-      mainWindow?.webContents.reloadIgnoringCache();
+    .then(() => {
+      // If successful, handle tools and return.
       handleEnvironmentTools();
     })
     .catch((error) => {
+      // If the server fails to load, try the local index.html as a fallback.
       console.error(`[Electron] Failed to load ${APP_URL}:`, error.message);
-      const errorHtmlPath = path.join(__dirname, 'error.html');
-      if (fs.existsSync(errorHtmlPath)) {
-        mainWindow?.loadFile(errorHtmlPath)
-          .then(() => {
-            handleEnvironmentTools();
-          })
-          .catch((loadError) => {
-            console.error(`[Electron] Failed to load fallback error page:`, loadError.message);
-            mainWindow?.loadURL('about:blank');
-          });
-      } else {
-        console.error(`[Electron] Fallback error.html not found at: ${errorHtmlPath}. Loading blank page.`);
-        mainWindow?.loadURL('about:blank');
-      }
+      
+      mainWindow.loadFile(indexPath)
+        .then(() => {
+          handleEnvironmentTools();
+        });
     });
+
+  // ----------------------------------------------------------------------
+  // END OF MODIFIED SECTION
+  // ----------------------------------------------------------------------
 
   mainWindow.on('closed', () => {
     mainWindow = null;

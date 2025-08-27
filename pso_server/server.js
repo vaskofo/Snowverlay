@@ -1232,7 +1232,7 @@ async function main() {
             server.listen(port);
         });
     };
-    let server_port = 8989;
+    let server_port = 8990;
     while (true) {
         if (await checkPort(server_port)) break;
         logger.warn(`port ${server_port} is already in use`);
@@ -1243,25 +1243,6 @@ async function main() {
         const url = 'http://localhost:' + server_port;
         logger.info(`Web Server started at ${url}`);
         logger.info('WebSocket Server started');
-
-        let command;
-        switch (process.platform) {
-            case 'darwin': // macOS
-                command = `open ${url}`;
-                break;
-            case 'win32': // Windows
-                command = `start ${url}`;
-                break;
-            default: // Linux 和其他 Unix-like 系统
-                command = `xdg-open ${url}`;
-                break;
-        }
-
-        exec(command, (error) => {
-            if (error) {
-                logger.error(`Failed to open browser: ${error.message}`);
-            }
-        });
     });
 
     logger.info('Welcome!');

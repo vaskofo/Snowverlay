@@ -142,7 +142,7 @@ html, body {
 
 .class {
     font-size: 10px;
-    color: #a0a0a0;
+    color: #fff;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
