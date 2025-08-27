@@ -11,7 +11,7 @@
   },
   "scripts": {
     "build": "pkg .",
-    "start": "node server.js",
+    "start": "node server.js auto info",
     "lint:pritter": "prettier --write .",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
