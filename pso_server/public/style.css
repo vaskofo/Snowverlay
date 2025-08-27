@@ -1,0 +1,242 @@
+/* Global Styles & Resets */
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: 'Roboto Condensed', sans-serif;
+    background-color: transparent;
+    -webkit-app-region: drag;
+    user-select: none;
+    color: #e0e0e0;
+    font-size: 12px;
+    box-sizing: border-box;
+}
+
+/* Main container using flexbox for a vertical layout */
+.main-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 5px;
+    box-sizing: border-box;
+}
+
+/* Controls (Buttons and Title) */
+.controls {
+    -webkit-app-region: drag;
+    user-select: none;
+    display: flex;
+    align-items: center; /* Vertically align items */
+    justify-content: space-between; /* Space out the title and buttons */
+    gap: 5px;
+    margin-bottom: 5px;
+    flex-shrink: 0;
+    /* NEW: Added background and padding to the control bar itself */
+    padding: 5px 10px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 8px;
+}
+.controls button {
+    -webkit-app-region: no-drag;
+    user-select: none;
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #e0e0e0;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+.controls button:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Group the status icon and title together */
+.title-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    -webkit-app-region: no-drag;
+    user-select: none;
+}
+
+/* Title styling */
+.app-title {
+    font-size: 14px;
+    font-weight: bold;
+    color: #fff;
+    white-space: nowrap;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+}
+
+/* Container for the columns */
+.columns-container {
+    display: flex;
+    flex-wrap: nowrap; /* Prevent wrapping to new rows */
+    gap: 10px;
+    flex-grow: 1; /* Allow container to fill available space */
+    overflow-x: auto; /* Enable horizontal scrolling for columns if needed */
+    overflow-y: hidden; /* Prevent vertical scrolling on this container */
+    min-width: 0; /* Ensures container doesn't overflow its parent */
+    padding-bottom: 5px; /* Add some space at the bottom */
+}
+
+/* Hide scrollbar for the columns container for aesthetic purposes */
+.columns-container::-webkit-scrollbar {
+    display: none;
+}
+
+.columns-container {
+    scrollbar-width: none;
+}
+
+/* The lists themselves, acting as columns */
+.data-list {
+    -webkit-app-region: no-drag;
+    user-select: none;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column; /* Stack list items vertically */
+    flex: 1; /* This change makes columns fill available width equally */
+    min-width: 169px; /* Prevents columns from getting too narrow */
+}
+
+/* Individual Player Data Item */
+.data-item {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 6px 8px 6px;
+    margin-bottom: 4px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.5);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+}
+
+/* Player Info Header with name and class on same line */
+.player-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.player-info {
+    display: flex;
+    flex-grow: 1;
+    justify-content: space-between;
+    min-width: 0;
+}
+
+.name {
+    font-size: 12px;
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #fff;
+}
+
+.class {
+    font-size: 10px;
+    color: #a0a0a0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
+}
+
+/* Second row: The Bars themselves */
+.bars-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+/* Base bar styling */
+.bar-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    position: relative;
+    padding: 0 5px;
+}
+
+.bar-label {
+    font-size: 9px;
+    color: #e0e0e0;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+    z-index: 2;
+    white-space: nowrap;
+}
+
+.bar-value-total {
+    font-size: 10px;
+    color: #e0e0e0;
+    font-weight: bold;
+    flex-grow: 1;
+    flex-basis: 0;
+    text-align: left;
+    z-index: 2;
+    white-space: nowrap;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+}
+
+.bar-value-rate {
+    font-size: 10px;
+    color: #e0e0e0;
+    font-weight: bold;
+    text-align: right;
+    flex-shrink: 0;
+    z-index: 2;
+    white-space: nowrap;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+}
+
+/* Bar background that fills the row */
+.bar-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s ease-out;
+    z-index: 1;
+}
+
+/* Increased bar heights */
+.dps-bar-row {
+    height: 18px;
+}
+.dps-bar-fill {
+    background-color: var(--color-dps);
+    box-shadow: 0 0 2px var(--color-dps-shadow);
+}
+
+.hps-bar-row {
+    height: 14px;
+}
+.hps-bar-fill {
+    background-color: var(--color-hps);
+}
+
+/* Server Status Indicator */
+#serverStatus {
+    /* NEW: Removed absolute positioning and changed to be part of the flex layout */
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+    flex-shrink: 0;
+}
+#serverStatus.connected { background-color: #4CAF50; }
+#serverStatus.disconnected { background-color: #F44336; }
+#serverStatus.reconnecting { background-color: #FFEB3B; }
+#serverStatus.cleared { background-color: #2196F3; }
+#serverStatus.paused { background-color: #FF9800; }
