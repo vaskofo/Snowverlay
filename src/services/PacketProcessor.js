@@ -156,23 +156,42 @@ const getDamageSource = (damageSource) => {
     }
 };
 
-const isUuidPlayer = (uuid) => (uuid.toBigInt() & 0xffffn) === 640n;
-const isUuidMonster = (uuid) => (uuid.toBigInt() & 0xffffn) === 64n;
+const isUuidPlayer = (uuid) => {
+    return (uuid.toBigInt() & 0xffffn) === 640n;
+};
+
+const isUuidMonster = (uuid) => {
+    return (uuid.toBigInt() & 0xffffn) === 64n;
+};
 
 const doesStreamHaveIdentifier = (reader) => {
+    const startPos = reader.position;
+    if (reader.remaining() < 8) {
+        return false;
+    }
+    
     let identifier = reader.readUInt32LE();
     reader.readInt32();
-    if (identifier !== 0xfffffffe) return false;
+    
+    if (identifier !== 0xfffffffe) {
+        reader.position = startPos;
+        return false;
+    }
+    
     identifier = reader.readInt32();
     reader.readInt32();
+    
+    reader.position = startPos;
     return true;
 };
 
 const streamReadString = (reader) => {
     const length = reader.readUInt32LE();
     reader.readInt32();
+    
     const buffer = reader.readBytes(length);
     reader.readInt32();
+    
     return buffer.toString();
 };
 
@@ -194,12 +213,18 @@ export class PacketProcessor {
     }
 
     _processAoiSyncDelta(aoiSyncDelta) {
-        if (!aoiSyncDelta) return;
+        if (!aoiSyncDelta) {
+            return;
+        }
         let targetUuid = aoiSyncDelta.Uuid;
-        if (!targetUuid) return;
+        if (!targetUuid) {
+            return;
+        }
+        
         const isTargetPlayer = isUuidPlayer(targetUuid);
         const isTargetMonster = isUuidMonster(targetUuid);
         targetUuid = targetUuid.shiftRight(16);
+        
         const attrCollection = aoiSyncDelta.Attrs;
         if (attrCollection && attrCollection.Attrs) {
             if (isTargetPlayer) {
@@ -208,27 +233,42 @@ export class PacketProcessor {
                 this._processEnemyAttrs(targetUuid.toNumber(), attrCollection.Attrs);
             }
         }
+        
         const skillEffect = aoiSyncDelta.SkillEffects;
-        if (!skillEffect || !skillEffect.Damages) return;
+        if (!skillEffect || !skillEffect.Damages) {
+            return;
+        }
+        
         for (const syncDamageInfo of skillEffect.Damages) {
             const skillId = syncDamageInfo.OwnerId;
-            if (!skillId) continue;
+            if (!skillId) {
+                continue;
+            }
+            
             let attackerUuid = syncDamageInfo.TopSummonerId || syncDamageInfo.AttackerUuid;
-            if (!attackerUuid) continue;
+            if (!attackerUuid) {
+                continue;
+            }
+            
             const isAttackerPlayer = isUuidPlayer(attackerUuid);
             attackerUuid = attackerUuid.shiftRight(16);
+            
             const value = syncDamageInfo.Value;
             const luckyValue = syncDamageInfo.LuckyValue;
             const damage = value ?? luckyValue ?? Long.ZERO;
-            if (damage.isZero()) continue;
-            const isCrit = syncDamageInfo.TypeFlag != null ? (syncDamageInfo.TypeFlag & 1) === 1 : false;
-            const isCauseLucky = syncDamageInfo.TypeFlag != null ? (syncDamageInfo.TypeFlag & 0b100) === 0b100 : false;
+            if (damage.isZero()) {
+                continue;
+            }
+            
+            const isCrit = (syncDamageInfo.TypeFlag != null) ? (syncDamageInfo.TypeFlag & 1) === 1 : false;
+            const isCauseLucky = (syncDamageInfo.TypeFlag != null) ? (syncDamageInfo.TypeFlag & 0b100) === 0b100 : false;
             const isHeal = syncDamageInfo.Type === pb.EDamageType.Heal;
-            const isDead = syncDamageInfo.IsDead != null ? syncDamageInfo.IsDead : false;
+            const isDead = (syncDamageInfo.IsDead != null) ? syncDamageInfo.IsDead : false;
             const isLucky = !!luckyValue;
-            const hpLessenValue = syncDamageInfo.HpLessenValue != null ? syncDamageInfo.HpLessenValue : Long.ZERO;
+            const hpLessenValue = (syncDamageInfo.HpLessenValue != null) ? syncDamageInfo.HpLessenValue : Long.ZERO;
             const damageElement = getDamageElement(syncDamageInfo.Property);
             const damageSource = syncDamageInfo.DamageSource ?? 0;
+            
             if (isTargetPlayer) {
                 if (isHeal) {
                     this.userDataManager.addHealing(
@@ -260,13 +300,24 @@ export class PacketProcessor {
                     targetUuid.toNumber()
                 );
             }
+            
             let extra = [];
-            if (isCrit) extra.push('Crit');
-            if (isLucky) extra.push('Lucky');
-            if (isCauseLucky) extra.push('CauseLucky');
-            if (extra.length === 0) extra = ['Normal'];
+            if (isCrit) {
+                extra.push('Crit');
+            }
+            if (isLucky) {
+                extra.push('Lucky');
+            }
+            if (isCauseLucky) {
+                extra.push('CauseLucky');
+            }
+            if (extra.length === 0) {
+                extra.push('Normal');
+            }
+            
             const actionType = isHeal ? 'HEAL' : 'DMG';
             let infoStr = `SRC: `;
+            
             if (isAttackerPlayer) {
                 const attacker = this.userDataManager.getUser(attackerUuid.toNumber());
                 if (attacker.name) {
@@ -279,6 +330,7 @@ export class PacketProcessor {
                 }
                 infoStr += `#${attackerUuid.toString()}(enemy)`;
             }
+            
             let targetName = '';
             if (isTargetPlayer) {
                 const target = this.userDataManager.getUser(targetUuid.toNumber());
@@ -292,16 +344,19 @@ export class PacketProcessor {
                 }
                 targetName += `#${targetUuid.toString()}(enemy)`;
             }
+            
             infoStr += ` TGT: ${targetName}`;
             const dmgLog = `[${actionType}] DS: ${getDamageSource(damageSource)} ${infoStr} ID: ${skillId} VAL: ${damage} HPLSN: ${hpLessenValue} ELEM: ${damageElement.slice(-1)} EXT: ${extra.join('|')}`;
-            this.logger.info(dmgLog);
+            //this.logger.info(dmgLog);
             this.userDataManager.addLog(dmgLog);
         }
     }
 
     _processSyncNearDeltaInfo(payloadBuffer) {
         const syncNearDeltaInfo = pb.SyncNearDeltaInfo.decode(payloadBuffer);
-        if (!syncNearDeltaInfo.DeltaInfos) return;
+        if (!syncNearDeltaInfo.DeltaInfos) {
+            return;
+        }
         for (const aoiSyncDelta of syncNearDeltaInfo.DeltaInfos) {
             this._processAoiSyncDelta(aoiSyncDelta);
         }
@@ -316,31 +371,50 @@ export class PacketProcessor {
             this.logger.info('Got player UUID! UUID: ' + currentUserUuid + ' UID: ' + currentUserUuid.shiftRight(16));
         }
         const aoiSyncDelta = aoiSyncToMeDelta.BaseDelta;
-        if (!aoiSyncDelta) return;
+        if (!aoiSyncDelta) {
+            return;
+        }
         this._processAoiSyncDelta(aoiSyncDelta);
     }
 
     _processSyncContainerData(payloadBuffer) {
         try {
             const syncContainerData = pb.SyncContainerData.decode(payloadBuffer);
-            if (!syncContainerData.VData) return;
+            if (!syncContainerData.VData) {
+                return;
+            }
             const vData = syncContainerData.VData;
-            if (!vData.CharId) return;
+            if (!vData.CharId) {
+                return;
+            }
             const playerUid = vData.CharId.toNumber();
-            if (vData.RoleLevel && vData.RoleLevel.Level)
+            
+            if (vData.RoleLevel && vData.RoleLevel.Level) {
                 this.userDataManager.setAttrKV(playerUid, 'level', vData.RoleLevel.Level);
-            if (vData.Attr && vData.Attr.CurHp)
+            }
+            if (vData.Attr && vData.Attr.CurHp) {
                 this.userDataManager.setAttrKV(playerUid, 'hp', vData.Attr.CurHp.toNumber());
-            if (vData.Attr && vData.Attr.MaxHp)
+            }
+            if (vData.Attr && vData.Attr.MaxHp) {
                 this.userDataManager.setAttrKV(playerUid, 'max_hp', vData.Attr.MaxHp.toNumber());
-            if (!vData.CharBase) return;
+            }
+            if (!vData.CharBase) {
+                return;
+            }
             const charBase = vData.CharBase;
-            if (charBase.Name) this.userDataManager.setName(playerUid, charBase.Name);
-            if (charBase.FightPoint) this.userDataManager.setFightPoint(playerUid, charBase.FightPoint);
-            if (!vData.ProfessionList) return;
+            if (charBase.Name) {
+                this.userDataManager.setName(playerUid, charBase.Name);
+            }
+            if (charBase.FightPoint) {
+                this.userDataManager.setFightPoint(playerUid, charBase.FightPoint);
+            }
+            if (!vData.ProfessionList) {
+                return;
+            }
             const professionList = vData.ProfessionList;
-            if (professionList.CurProfessionId)
+            if (professionList.CurProfessionId) {
                 this.userDataManager.setProfession(playerUid, getProfessionNameFromId(professionList.CurProfessionId));
+            }
         } catch (err) {
             fs.writeFileSync('./SyncContainerData.dat', payloadBuffer);
             this.logger.warn(
@@ -351,60 +425,84 @@ export class PacketProcessor {
     }
 
     _processSyncContainerDirtyData(payloadBuffer) {
-        if (currentUserUuid.isZero()) return;
+        if (currentUserUuid.isZero()) {
+            return;
+        }
+        
         // --- FIX: Correctly access the protobuf message type ---
         const syncContainerDirtyData = pb.SyncContainerDirtyData.decode(payloadBuffer);
-        if (!syncContainerDirtyData.VData || !syncContainerDirtyData.VData.Buffer) return;
+        
+        if (!syncContainerDirtyData.VData || !syncContainerDirtyData.VData.Buffer) {
+            return;
+        }
+        
         const messageReader = new BinaryReader(Buffer.from(syncContainerDirtyData.VData.Buffer));
-        if (!doesStreamHaveIdentifier(messageReader)) return;
+        if (!doesStreamHaveIdentifier(messageReader)) {
+            return;
+        }
+        
         let fieldIndex = messageReader.readUInt32LE();
         messageReader.readInt32();
+        
         switch (fieldIndex) {
             case 2: // CharBase
-                if (!doesStreamHaveIdentifier(messageReader)) break;
+                if (!doesStreamHaveIdentifier(messageReader)) {
+                    break;
+                }
                 fieldIndex = messageReader.readUInt32LE();
                 messageReader.readInt32();
                 switch (fieldIndex) {
-                    case 5: // Name
+                    case 5: { // Name
                         const playerName = streamReadString(messageReader);
-                        if (!playerName || playerName === '') break;
+                        if (!playerName || playerName === '') {
+                            break;
+                        }
                         this.userDataManager.setName(currentUserUuid.shiftRight(16).toNumber(), playerName);
                         break;
-                    case 35: // FightPoint
+                    }
+                    case 35: { // FightPoint
                         const fightPoint = messageReader.readUInt32LE();
                         messageReader.readInt32();
                         this.userDataManager.setFightPoint(currentUserUuid.shiftRight(16).toNumber(), fightPoint);
                         break;
+                    }
                 }
                 break;
             case 16: // UserFightAttr
-                if (!doesStreamHaveIdentifier(messageReader)) break;
+                if (!doesStreamHaveIdentifier(messageReader)) {
+                    break;
+                }
                 fieldIndex = messageReader.readUInt32LE();
                 messageReader.readInt32();
                 switch (fieldIndex) {
-                    case 1: // CurHp
+                    case 1: { // CurHp
                         const curHp = messageReader.readUInt32LE();
                         this.userDataManager.setAttrKV(currentUserUuid.shiftRight(16).toNumber(), 'hp', curHp);
                         break;
-                    case 2: // MaxHp
+                    }
+                    case 2: { // MaxHp
                         const maxHp = messageReader.readUInt32LE();
                         this.userDataManager.setAttrKV(currentUserUuid.shiftRight(16).toNumber(), 'max_hp', maxHp);
                         break;
+                    }
                 }
                 break;
             case 61: // ProfessionList
-                if (!doesStreamHaveIdentifier(messageReader)) break;
+                if (!doesStreamHaveIdentifier(messageReader)) {
+                    break;
+                }
                 fieldIndex = messageReader.readUInt32LE();
                 messageReader.readInt32();
                 if (fieldIndex === 1) {
                     // CurProfessionId
                     const curProfessionId = messageReader.readUInt32LE();
                     messageReader.readInt32();
-                    if (curProfessionId)
+                    if (curProfessionId) {
                         this.userDataManager.setProfession(
                             currentUserUuid.shiftRight(16).toNumber(),
                             getProfessionNameFromId(curProfessionId)
                         );
+                    }
                 }
                 break;
         }
@@ -412,60 +510,77 @@ export class PacketProcessor {
 
     _processPlayerAttrs(playerUid, attrs) {
         for (const attr of attrs) {
-            if (!attr.Id || !attr.RawData) continue;
+            if (!attr.Id || !attr.RawData) {
+                continue;
+            }
             const reader = pbjs.Reader.create(attr.RawData);
             switch (attr.Id) {
-                case AttrType.AttrName:
+                case AttrType.AttrName: {
                     this.userDataManager.setName(playerUid, reader.string());
                     break;
-                case AttrType.AttrProfessionId:
+                }
+                case AttrType.AttrProfessionId: {
                     this.userDataManager.setProfession(playerUid, getProfessionNameFromId(reader.int32()));
                     break;
-                case AttrType.AttrFightPoint:
+                }
+                case AttrType.AttrFightPoint: {
                     this.userDataManager.setFightPoint(playerUid, reader.int32());
                     break;
-                case AttrType.AttrLevel:
+                }
+                case AttrType.AttrLevel: {
                     this.userDataManager.setAttrKV(playerUid, 'level', reader.int32());
                     break;
-                case AttrType.AttrRankLevel:
+                }
+                case AttrType.AttrRankLevel: {
                     this.userDataManager.setAttrKV(playerUid, 'rank_level', reader.int32());
                     break;
-                case AttrType.AttrCri:
+                }
+                case AttrType.AttrCri: {
                     this.userDataManager.setAttrKV(playerUid, 'cri', reader.int32());
                     break;
-                case AttrType.AttrLucky:
+                }
+                case AttrType.AttrLucky: {
                     this.userDataManager.setAttrKV(playerUid, 'lucky', reader.int32());
                     break;
-                case AttrType.AttrHp:
+                }
+                case AttrType.AttrHp: {
                     this.userDataManager.setAttrKV(playerUid, 'hp', reader.int32());
                     break;
-                case AttrType.AttrMaxHp:
+                }
+                case AttrType.AttrMaxHp: {
                     this.userDataManager.setAttrKV(playerUid, 'max_hp', reader.int32());
                     break;
-                case AttrType.AttrElementFlag:
+                }
+                case AttrType.AttrElementFlag: {
                     this.userDataManager.setAttrKV(playerUid, 'element_flag', reader.int32());
                     break;
-                case AttrType.AttrEnergyFlag:
+                }
+                case AttrType.AttrEnergyFlag: {
                     this.userDataManager.setAttrKV(playerUid, 'energy_flag', reader.int32());
                     break;
-                case AttrType.AttrReductionLevel:
+                }
+                case AttrType.AttrReductionLevel: {
                     this.userDataManager.setAttrKV(playerUid, 'reduction_level', reader.int32());
                     break;
+                }
             }
         }
     }
 
     _processEnemyAttrs(enemyUid, attrs) {
         for (const attr of attrs) {
-            if (!attr.Id || !attr.RawData) continue;
+            if (!attr.Id || !attr.RawData) {
+                continue;
+            }
             const reader = pbjs.Reader.create(attr.RawData);
             switch (attr.Id) {
-                case AttrType.AttrName:
+                case AttrType.AttrName: {
                     const enemyName = reader.string();
                     this.userDataManager.enemyCache.name.set(enemyUid, enemyName);
                     this.logger.info(`Found monster name ${enemyName} for id ${enemyUid}`);
                     break;
-                case AttrType.AttrId:
+                }
+                case AttrType.AttrId: {
                     const attrId = reader.int32();
                     const name = monsterNames[attrId];
                     if (name) {
@@ -473,32 +588,41 @@ export class PacketProcessor {
                         this.userDataManager.enemyCache.name.set(enemyUid, name);
                     }
                     break;
-                case AttrType.AttrHp:
+                }
+                case AttrType.AttrHp: {
                     this.userDataManager.enemyCache.hp.set(enemyUid, reader.int32());
                     break;
-                case AttrType.AttrMaxHp:
+                }
+                case AttrType.AttrMaxHp: {
                     this.userDataManager.enemyCache.maxHp.set(enemyUid, reader.int32());
                     break;
+                }
             }
         }
     }
 
     _processSyncNearEntities(payloadBuffer) {
         const syncNearEntities = pb.SyncNearEntities.decode(payloadBuffer);
-        if (!syncNearEntities.Appear) return;
+        if (!syncNearEntities.Appear) {
+            return;
+        }
         for (const entity of syncNearEntities.Appear) {
             const entityUuid = entity.Uuid;
-            if (!entityUuid) continue;
+            if (!entityUuid) {
+                continue;
+            }
             const entityUid = entityUuid.shiftRight(16).toNumber();
             const attrCollection = entity.Attrs;
             if (attrCollection && attrCollection.Attrs) {
                 switch (entity.EntType) {
-                    case pb.EEntityType.EntMonster:
+                    case pb.EEntityType.EntMonster: {
                         this._processEnemyAttrs(entityUid, attrCollection.Attrs);
                         break;
-                    case pb.EEntityType.EntChar:
+                    }
+                    case pb.EEntityType.EntChar: {
                         this._processPlayerAttrs(entityUid, attrCollection.Attrs);
                         break;
+                    }
                 }
             }
         }
@@ -517,29 +641,35 @@ export class PacketProcessor {
             msgPayload = this._decompressPayload(msgPayload);
         }
         switch (methodId) {
-            case NotifyMethod.SyncNearEntities:
+            case NotifyMethod.SyncNearEntities: {
                 this._processSyncNearEntities(msgPayload);
                 break;
-            case NotifyMethod.SyncContainerData:
+            }
+            case NotifyMethod.SyncContainerData: {
                 this._processSyncContainerData(msgPayload);
                 break;
-            case NotifyMethod.SyncContainerDirtyData:
+            }
+            case NotifyMethod.SyncContainerDirtyData: {
                 this._processSyncContainerDirtyData(msgPayload);
                 break;
-            case NotifyMethod.SyncToMeDeltaInfo:
+            }
+            case NotifyMethod.SyncToMeDeltaInfo: {
                 this._processSyncToMeDeltaInfo(msgPayload);
                 break;
-            case NotifyMethod.SyncNearDeltaInfo:
+            }
+            case NotifyMethod.SyncNearDeltaInfo: {
                 this._processSyncNearDeltaInfo(msgPayload);
                 break;
-            default:
+            }
+            default: {
                 this.logger.debug(`Skipping NotifyMsg with methodId ${methodId}`);
                 break;
+            }
         }
     }
 
     _processReturnMsg(reader, isZstdCompressed) {
-        this.logger.debug(`Unimplemented processing return`);
+        this.logger.debug('Unimplemented processing return');
     }
 
     processPacket(packets) {
@@ -562,21 +692,30 @@ export class PacketProcessor {
                 const isZstdCompressed = (packetType & 0x8000) !== 0;
                 const msgTypeId = packetType & 0x7fff;
                 switch (msgTypeId) {
-                    case MessageType.Notify:
+                    case MessageType.Notify: {
                         this._processNotifyMsg(packetReader, isZstdCompressed);
                         break;
-                    case MessageType.Return:
+                    }
+                    case MessageType.Return: {
                         this._processReturnMsg(packetReader, isZstdCompressed);
                         break;
-                    case MessageType.FrameDown:
-                        packetReader.readUInt32();
-                        if (packetReader.remaining() === 0) break;
+                    }
+                    case MessageType.FrameDown: {
+                        packetReader.readUInt32(); // serverSequenceId
+                        if (packetReader.remaining() === 0) {
+                            break;
+                        }
                         let nestedPacket = packetReader.readRemaining();
                         if (isZstdCompressed) {
                             nestedPacket = this._decompressPayload(nestedPacket);
                         }
                         this.processPacket(nestedPacket);
                         break;
+                    }
+                    default: {
+                        // Silently ignore unknown packet types
+                        break;
+                    }
                 }
             }
         } catch (e) {
@@ -585,6 +724,7 @@ export class PacketProcessor {
             );
         }
     }
+
     processDataChunk(dataChunk) {
         if (!dataChunk || dataChunk.length === 0) {
             return;
@@ -595,28 +735,27 @@ export class PacketProcessor {
 
     _parseBuffer() {
         const MIN_PACKET_SIZE = 6;
-        const MAX_PACKET_SIZE = 1024 * 1024; // 1MB sanity limit
+        const MAX_PACKET_SIZE = 1024 * 1024;
 
-        // Loop as long as there's potentially a full packet in the buffer
         while (this.internalBuffer.length >= 4) {
-            const packetSize = this.internalBuffer.readUInt32BE(0);
-
-            // Sanity check: If the size is unreasonable, the stream is corrupt.
+            const tempReader = new BinaryReader(this.internalBuffer);
+            const hasHeader = doesStreamHaveIdentifier(tempReader);
+            if (!hasHeader) {
+                this.logger.warn(`Invalid packet header: ${this.internalBuffer.readUInt32LE(0)}. Advancing to next chunk.`);
+                this.internalBuffer = this.internalBuffer.subarray(4);
+                continue;
+            }
+            const packetSize = this.internalBuffer.readUInt32LE(0);
             if (packetSize < MIN_PACKET_SIZE || packetSize > MAX_PACKET_SIZE) {
-                this.logger.warn(`Invalid packet length detected: ${packetSize}. Clearing internal buffer to recover.`);
+                this.logger.warn(`Invalid packet length detected: ${packetSize}. Clearing internal buffer.`);
                 this.internalBuffer = Buffer.alloc(0);
                 break;
             }
-
-            // Check if the full packet has arrived yet.
             if (this.internalBuffer.length < packetSize) {
-                // Not enough data yet, wait for the next chunk.
                 break;
             }
-
             const packetData = this.internalBuffer.subarray(0, packetSize);
             this.internalBuffer = this.internalBuffer.subarray(packetSize);
-
             this._processSinglePacket(packetData);
         }
     }
@@ -628,31 +767,34 @@ export class PacketProcessor {
             const packetType = packetReader.readUInt16();
             const isZstdCompressed = (packetType & 0x8000) !== 0;
             const msgTypeId = packetType & 0x7fff;
-
             switch (msgTypeId) {
-                case MessageType.Notify:
+                case MessageType.Notify: {
                     this._processNotifyMsg(packetReader, isZstdCompressed);
                     break;
-                case MessageType.Return:
+                }
+                case MessageType.Return: {
                     this._processReturnMsg(packetReader, isZstdCompressed);
                     break;
-                case MessageType.FrameDown:
+                }
+                case MessageType.FrameDown: {
                     packetReader.readUInt32(); // serverSequenceId
-                    if (packetReader.remaining() === 0) break;
-
+                    if (packetReader.remaining() === 0) {
+                        break;
+                    }
                     let nestedPacket = packetReader.readRemaining();
-
                     if (isZstdCompressed) {
                         nestedPacket = this._decompressPayload(nestedPacket);
                     }
-
-                    // Recursively process nested packets
                     this.processDataChunk(nestedPacket);
                     break;
-                default:
+                }
+                default: {
                     // Silently ignore unknown packet types
                     break;
+                }
             }
-        } catch (e) {}
+        } catch (e) {
+            // A try-catch block here is helpful for parsing issues
+        }
     }
 }
