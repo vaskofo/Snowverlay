@@ -1,10 +1,3 @@
-/*
-================================================================================
-| FILENAME: window.js (Creates the main browser window)
-| DESCRIPTION:
-| Creates and configures your main application window, using ES Modules.
-================================================================================
-*/
 import { BrowserWindow } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -46,5 +39,4 @@ export function createMainWindow() {
   return mainWindow;
 }
 
-// A way to reference the mainWindow from other files if needed
 export const mainWindowRef = () => mainWindow;

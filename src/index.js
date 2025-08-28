@@ -1,11 +1,3 @@
-/*
-================================================================================
-| FILENAME: index.js (Your main Electron process, inside src/)
-| DESCRIPTION:
-| This script automatically starts the backend server when the app is ready,
-| and then loads the application's UI from that server.
-================================================================================
-*/
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { startServer } from './server.js'; 
 import { createMainWindow } from './window.js';

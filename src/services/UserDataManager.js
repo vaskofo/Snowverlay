@@ -1,5 +1,5 @@
-import { UserData } from './UserData.js';
-import { Lock } from './Lock.js';
+import { UserData } from '../models/UserData.js';
+import { Lock } from '../models/Lock.js';
 import { config } from '../config.js';
 import fsPromises from 'fs/promises';
 import path from 'path';
@@ -8,15 +8,14 @@ export class UserDataManager {
     constructor(logger) {
         this.logger = logger;
         this.users = new Map();
-        this.userCache = new Map(); // 用户名字和职业缓存
+        this.userCache = new Map(); 
         this.cacheFilePath = './users.json';
 
-        // 节流相关配置
-        this.saveThrottleDelay = 2000; // 2秒节流延迟，避免频繁磁盘写入
+        this.saveThrottleDelay = 2000; 
         this.saveThrottleTimer = null;
         this.pendingSave = false;
 
-        this.hpCache = new Map(); // 这个经常变化的就不存盘了
+        this.hpCache = new Map(); 
         this.startTime = Date.now();
 
         this.logLock = new Lock();
@@ -38,12 +37,10 @@ export class UserDataManager {
         }, 10 * 1000);
     }
 
-    /** 初始化方法 - 异步加载用户缓存 */
     async initialize() {
         await this.loadUserCache();
     }
 
-    /** 加载用户缓存 */
     async loadUserCache() {
         try {
             await fsPromises.access(this.cacheFilePath);
@@ -58,7 +55,6 @@ export class UserDataManager {
         }
     }
 
-    /** 保存用户缓存 */
     async saveUserCache() {
         try {
             const cacheData = Object.fromEntries(this.userCache);
@@ -68,7 +64,6 @@ export class UserDataManager {
         }
     }
 
-    /** 节流保存用户缓存 - 减少频繁的磁盘写入 */
     saveUserCacheThrottled() {
         this.pendingSave = true;
 
@@ -85,7 +80,6 @@ export class UserDataManager {
         }, this.saveThrottleDelay);
     }
 
-    /** 强制立即保存用户缓存 - 用于程序退出等场景 */
     async forceUserCacheSave() {
         await this.saveAllUserData(this.users, this.startTime);
         if (this.saveThrottleTimer) {
@@ -98,7 +92,6 @@ export class UserDataManager {
         }
     }
 
-    /** 获取或创建用户记录 */
     getUser(uid) {
         if (!this.users.has(uid)) {
             const user = new UserData(uid);
@@ -127,7 +120,6 @@ export class UserDataManager {
         return this.users.get(uid);
     }
 
-    /** 添加伤害记录 */
     addDamage(uid, skillId, element, damage, isCrit, isLucky, isCauseLucky, hpLessenValue = 0, targetUid) {
         if (config.IS_PAUSED) return;
         if (config.GLOBAL_SETTINGS.onlyRecordEliteDummy && targetUid !== 75) return;
@@ -136,7 +128,6 @@ export class UserDataManager {
         user.addDamage(skillId, element, damage, isCrit, isLucky, isCauseLucky, hpLessenValue);
     }
 
-    /** 添加治疗记录 */
     addHealing(uid, skillId, element, healing, isCrit, isLucky, isCauseLucky, targetUid) {
         if (config.IS_PAUSED) return;
         this.checkTimeoutClear();
@@ -146,7 +137,6 @@ export class UserDataManager {
         }
     }
 
-    /** 添加承伤记录 */
     addTakenDamage(uid, damage, isDead) {
         if (config.IS_PAUSED) return;
         this.checkTimeoutClear();
@@ -154,7 +144,6 @@ export class UserDataManager {
         user.addTakenDamage(damage, isDead);
     }
 
-    /** 添加日志记录 */
     async addLog(log) {
         if (config.IS_PAUSED) return;
 
@@ -182,7 +171,6 @@ export class UserDataManager {
         this.logLock.release();
     }
 
-    /** 设置用户职业 */
     setProfession(uid, profession) {
         const user = this.getUser(uid);
         if (user.profession !== profession) {
@@ -198,7 +186,6 @@ export class UserDataManager {
         }
     }
 
-    /** 设置用户姓名 */
     setName(uid, name) {
         const user = this.getUser(uid);
         if (user.name !== name) {
@@ -214,7 +201,6 @@ export class UserDataManager {
         }
     }
 
-    /** 设置用户总评分 */
     setFightPoint(uid, fightPoint) {
         const user = this.getUser(uid);
         if (user.fightPoint != fightPoint) {
@@ -230,7 +216,6 @@ export class UserDataManager {
         }
     }
 
-    /** 设置额外数据 */
     setAttrKV(uid, key, value) {
         const user = this.getUser(uid);
         user.attr[key] = value;
@@ -248,14 +233,12 @@ export class UserDataManager {
         }
     }
 
-    /** 更新所有用户的实时DPS和HPS */
     updateAllRealtimeDps() {
         for (const user of this.users.values()) {
             user.updateRealtimeDps();
         }
     }
 
-    /** 获取用户的技能数据 */
     getUserSkillData(uid) {
         const user = this.users.get(uid);
         if (!user) return null;
@@ -269,19 +252,14 @@ export class UserDataManager {
         };
     }
 
-    /** 获取所有用户数据 */
     getAllUsersData() {
         const result = {};
         for (const [uid, user] of this.users.entries()) {
-            // --- THIS IS THE CRITICAL FIX ---
-            // The original code called user.getSummary(), which was correct.
-            // This ensures that the implementation from UserData.js is always used.
             result[uid] = user.getSummary();
         }
         return result;
     }
 
-    /** 获取所有敌方缓存数据 */
     getAllEnemiesData() {
         const result = {};
         const enemyIds = new Set([...this.enemyCache.name.keys(), ...this.enemyCache.hp.keys(), ...this.enemyCache.maxHp.keys()]);
@@ -295,14 +273,12 @@ export class UserDataManager {
         return result;
     }
 
-    /** 清空敌方缓存 */
     refreshEnemyCache() {
         this.enemyCache.name.clear();
         this.enemyCache.hp.clear();
         this.enemyCache.maxHp.clear();
     }
 
-    /** 清除所有用户数据 */
     clearAll() {
         const usersToSave = this.users;
         const saveStartTime = this.startTime;
@@ -313,12 +289,10 @@ export class UserDataManager {
         this.saveAllUserData(usersToSave, saveStartTime);
     }
 
-    /** 获取用户列表 */
     getUserIds() {
         return Array.from(this.users.keys());
     }
 
-    /** 保存所有用户数据到历史记录 */
     async saveAllUserData(usersToSave = null, startTime = null) {
         try {
             const endTime = Date.now();

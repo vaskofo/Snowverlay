@@ -1,5 +1,7 @@
 # BPSR-PSO
 
+**Forked from:** https://github.com/dmlgzs/StarResonanceDamageCounter
+
 Blue Protocol: Star Resonance - Per Second Overlay
 Provides a useful GUI to track DPS / HPS for nearby players
 

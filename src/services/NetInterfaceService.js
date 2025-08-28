@@ -1,7 +1,6 @@
 import { exec } from 'child_process';
 import cap from 'cap';
 
-// Filter virtual adapters
 const VIRTUAL_KEYWORDS = ['zerotier', 'vmware', 'hyper-v', 'virtual', 'loopback', 'tap', 'bluetooth', 'wan miniport'];
 
 function isVirtual(name) {
@@ -10,7 +9,7 @@ function isVirtual(name) {
 }
 
 // Detect TCP traffic for 3 seconds
-function detectTraffic(deviceIndex, devices) {
+export function detectTraffic(deviceIndex, devices) {
     return new Promise((resolve) => {
         let count = 0;
         try {
@@ -41,7 +40,7 @@ function detectTraffic(deviceIndex, devices) {
     });
 }
 
-async function findByRoute(devices) {
+export async function findByRoute(devices) {
     try {
         const stdout = await new Promise((resolve, reject) => {
             exec('route print 0.0.0.0', (error, stdout) => {
@@ -68,7 +67,7 @@ async function findByRoute(devices) {
     }
 }
 
-async function findDefaultNetworkDevice(devices) {
+export async function findDefaultNetworkDevice(devices) {
     try {
         // Get physical adapters
         const physical = Object.entries(devices).filter(([, device]) => {
@@ -109,5 +108,3 @@ async function findDefaultNetworkDevice(devices) {
         return undefined;
     }
 }
-
-export default findDefaultNetworkDevice;

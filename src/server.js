@@ -1,11 +1,3 @@
-/*
-================================================================================
-| FILENAME: server.js (Corrected and Fully Functional)
-| DESCRIPTION:
-| This file contains your complete, original server logic, correctly adapted
-| to run inside Electron using ES Modules. All functionality is preserved.
-================================================================================
-*/
 import cap from 'cap';
 import cors from 'cors';
 import winston from 'winston';
@@ -14,22 +6,20 @@ import express from 'express';
 import http from 'http';
 import net from 'net';
 import path from 'path';
-import { Server } from 'socket.io';
 import fsPromises from 'fs/promises';
+import { Server } from 'socket.io';
 import { fileURLToPath } from 'url';
+import { findDefaultNetworkDevice } from './services/NetInterfaceService.js';
+import { PacketProcessor } from './services/PacketProcessor.js';
+import { UserDataManager } from './services/UserDataManager.js';
+import { Lock } from './models/Lock.js';
+import { createApiRouter } from './routes/api.js';
+import { Readable } from 'stream';
 
-// ES Module polyfill for __dirname
+import skillConfig from './tables/skill_names.json' with { type: 'json' };
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// --- Correctly import all your modules ---
-import findDefaultNetworkDevice from './algo/netInterfaceUtil.js';
-import PacketProcessor from './algo/packet.js';
-import { Lock } from './models/Lock.js';
-import { UserDataManager } from './models/UserDataManager.js';
-import createApiRouter from './routes/api.js';
-import skillConfig from './tables/skill_names.json' with { type: 'json' };
-import { Readable } from 'stream';
 
 const Cap = cap.Cap;
 const decoders = cap.decoders;
@@ -38,7 +28,6 @@ const PROTOCOL = decoders.PROTOCOL;
 export async function startServer(deviceParam, logLevel = 'info') {
     return new Promise(async (resolve, reject) => {
         try {
-            // --- All of your original logic from main() goes here ---
             const devices = cap.deviceList();
             let num = deviceParam;
             let log_level = logLevel;

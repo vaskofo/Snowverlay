@@ -4,89 +4,11 @@ import pbjs from 'protobufjs/minimal.js';
 import fs from 'fs';
 import { createRequire } from 'module';
 import monsterNames from '../tables/monster_names.json' with { type: 'json' };
+import { BinaryReader } from '../models/BinaryReader.js';
 
-// Helper to require JSON and other CJS modules
 const require = createRequire(import.meta.url);
-const pb = require('./blueprotobuf.js');
+const pb = require('../algo/blueprotobuf.js');
 
-class BinaryReader {
-    constructor(buffer, offset = 0) {
-        this.buffer = buffer;
-        this.offset = offset;
-    }
-
-    readUInt64() {
-        const value = this.buffer.readBigUInt64BE(this.offset);
-        this.offset += 8;
-        return value;
-    }
-
-    peekUInt64() {
-        return this.buffer.readBigUInt64BE(this.offset);
-    }
-
-    readUInt32() {
-        const value = this.buffer.readUInt32BE(this.offset);
-        this.offset += 4;
-        return value;
-    }
-
-    peekUInt32() {
-        return this.buffer.readUInt32BE(this.offset);
-    }
-
-    readInt32() {
-        const value = this.buffer.readInt32BE(this.offset);
-        this.offset += 4;
-        return value;
-    }
-
-    readUInt32LE() {
-        const value = this.buffer.readUInt32LE(this.offset);
-        this.offset += 4;
-        return value;
-    }
-
-    peekInt32() {
-        return this.buffer.readInt32BE(this.offset);
-    }
-
-    readUInt16() {
-        const value = this.buffer.readUInt16BE(this.offset);
-        this.offset += 2;
-        return value;
-    }
-
-    peekUInt16() {
-        return this.buffer.readUInt16BE(this.offset);
-    }
-
-    readBytes(length) {
-        if (this.offset + length > this.buffer.length) {
-            throw new Error("Attempt to read beyond buffer length");
-        }
-        const value = this.buffer.subarray(this.offset, this.offset + length);
-        this.offset += length;
-        return value;
-    }
-
-    peekBytes(length) {
-        if (this.offset + length > this.buffer.length) {
-            throw new Error("Attempt to peek beyond buffer length");
-        }
-        return this.buffer.subarray(this.offset, this.offset + length);
-    }
-
-    remaining() {
-        return this.buffer.length - this.offset;
-    }
-
-    readRemaining() {
-        const value = this.buffer.subarray(this.offset);
-        this.offset = this.buffer.length;
-        return value;
-    }
-}
 
 const MessageType = {
     None: 0,
@@ -257,11 +179,10 @@ const streamReadString = (reader) => {
 
 let currentUserUuid = Long.ZERO;
 
-class PacketProcessor {
+export class PacketProcessor {
     constructor({ logger, userDataManager }) {
         this.logger = logger;
         this.userDataManager = userDataManager;
-        // --- IMPROVEMENT: Add an internal buffer to manage the data stream ---
         this.internalBuffer = Buffer.alloc(0);
     }
 
@@ -303,7 +224,6 @@ class PacketProcessor {
             if (damage.isZero()) continue;
             const isCrit = syncDamageInfo.TypeFlag != null ? (syncDamageInfo.TypeFlag & 1) === 1 : false;
             const isCauseLucky = syncDamageInfo.TypeFlag != null ? (syncDamageInfo.TypeFlag & 0b100) === 0b100 : false;
-            // --- FIX: Correctly access the protobuf enum ---
             const isHeal = syncDamageInfo.Type === pb.EDamageType.Heal;
             const isDead = syncDamageInfo.IsDead != null ? syncDamageInfo.IsDead : false;
             const isLucky = !!luckyValue;
@@ -362,7 +282,6 @@ class PacketProcessor {
     }
 
     _processSyncNearDeltaInfo(payloadBuffer) {
-        // --- FIX: Correctly access the protobuf message type ---
         const syncNearDeltaInfo = pb.SyncNearDeltaInfo.decode(payloadBuffer);
         if (!syncNearDeltaInfo.DeltaInfos) return;
         for (const aoiSyncDelta of syncNearDeltaInfo.DeltaInfos) {
@@ -371,7 +290,6 @@ class PacketProcessor {
     }
 
     _processSyncToMeDeltaInfo(payloadBuffer) {
-        // --- FIX: Correctly access the protobuf message type ---
         const syncToMeDeltaInfo = pb.SyncToMeDeltaInfo.decode(payloadBuffer);
         const aoiSyncToMeDelta = syncToMeDeltaInfo.DeltaInfo;
         const uuid = aoiSyncToMeDelta.Uuid;
@@ -386,7 +304,6 @@ class PacketProcessor {
 
     _processSyncContainerData(payloadBuffer) {
         try {
-            // --- FIX: Correctly access the protobuf message type ---
             const syncContainerData = pb.SyncContainerData.decode(payloadBuffer);
             if (!syncContainerData.VData) return;
             const vData = syncContainerData.VData;
@@ -540,7 +457,6 @@ class PacketProcessor {
     }
 
     _processSyncNearEntities(payloadBuffer) {
-        // --- FIX: Correctly access the protobuf message type ---
         const syncNearEntities = pb.SyncNearEntities.decode(payloadBuffer);
         if (!syncNearEntities.Appear) return;
         for (const entity of syncNearEntities.Appear) {
@@ -550,7 +466,6 @@ class PacketProcessor {
             const attrCollection = entity.Attrs;
             if (attrCollection && attrCollection.Attrs) {
                 switch (entity.EntType) {
-                    // --- FIX: Correctly access the protobuf enum ---
                     case pb.EEntityType.EntMonster:
                         this._processEnemyAttrs(entityUid, attrCollection.Attrs);
                         break;
@@ -649,7 +564,6 @@ class PacketProcessor {
         this._parseBuffer();
     }
 
-    // --- IMPROVEMENT: New robust parsing loop ---
     _parseBuffer() {
         const MIN_PACKET_SIZE = 6;
         const MAX_PACKET_SIZE = 1024 * 1024; // 1MB sanity limit
@@ -661,7 +575,7 @@ class PacketProcessor {
             // Sanity check: If the size is unreasonable, the stream is corrupt.
             if (packetSize < MIN_PACKET_SIZE || packetSize > MAX_PACKET_SIZE) {
                 this.logger.warn(`Invalid packet length detected: ${packetSize}. Clearing internal buffer to recover.`);
-                this.internalBuffer = Buffer.alloc(0); // Clear buffer and break
+                this.internalBuffer = Buffer.alloc(0); 
                 break;
             }
 
@@ -671,21 +585,17 @@ class PacketProcessor {
                 break;
             }
 
-            // We have a full, valid-looking packet. Extract it.
             const packetData = this.internalBuffer.subarray(0, packetSize);
-            // CRITICAL: Remove the processed packet from the buffer.
             this.internalBuffer = this.internalBuffer.subarray(packetSize);
 
-            // Process the extracted packet using the original logic
             this._processSinglePacket(packetData);
         }
     }
 
-    // --- IMPROVEMENT: The original processPacket logic is now here, for a single, complete packet ---
     _processSinglePacket(packetBuffer) {
         try {
             const packetReader = new BinaryReader(packetBuffer);
-            packetReader.readUInt32(); // Consume the size to advance the reader
+            packetReader.readUInt32(); 
             const packetType = packetReader.readUInt16();
             const isZstdCompressed = (packetType & 0x8000) !== 0;
             const msgTypeId = packetType & 0x7fff;
@@ -718,5 +628,3 @@ class PacketProcessor {
         }
     }
 }
-
-export default PacketProcessor;

@@ -12,14 +12,12 @@ html, body {
     min-width: 256px;
 }
 
-/* NEW: Wrapper for the entire application */
 #app-wrapper {
     width: 100%;
     height: 100%;
     pointer-events: none; 
 }
 
-/* Main container using flexbox for a vertical layout */
 .main-container {
     pointer-events: auto; 
     display: flex;
@@ -33,7 +31,6 @@ html, body {
 }
 
 
-/* Controls (Buttons and Title) */
 .controls {
     -webkit-app-region: drag;
     user-select: none;
@@ -44,7 +41,7 @@ html, body {
     flex-shrink: 0;
     padding: 5px 10px;
     background: rgba(0, 0, 0, 0.5);
-    border-radius: 8px 8px 0 0; /* Adjust radius for top corners */
+    border-radius: 8px 8px 0 0; 
 }
 
 .controls button {
@@ -63,7 +60,6 @@ html, body {
     background: rgba(255, 255, 255, 0.3);
 }
 
-/* Group the status icon and title together */
 .title-container {
     display: flex;
     align-items: center;
@@ -71,7 +67,6 @@ html, body {
     user-select: none;
 }
 
-/* Title styling */
 .app-title {
     font-size: 14px;
     font-weight: bold;
@@ -80,12 +75,10 @@ html, body {
     text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
 }
 
-/* --- IMPROVEMENT: Container for the columns now uses CSS Grid --- */
 .columns-container {
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: minmax(250px, 1fr); 
-    /* --- FIX: Change 'auto' to 'min-content' to prevent expansion --- */
     grid-template-rows: repeat(auto-fill, minmax(66px, min-content));
     gap: 5px;
     flex-grow: 1;
@@ -101,7 +94,6 @@ html, body {
     pointer-events: none;
 }
 
-/* Hide scrollbar for the columns container for aesthetic purposes */
 .columns-container::-webkit-scrollbar {
     display: none;
 }
@@ -110,17 +102,14 @@ html, body {
     scrollbar-width: none;
 }
 
-/* The data-list is no longer needed as a column wrapper */
 .data-list {
     display: contents;
 }
 
-/* Individual Player Data Item */
 .data-item {
     display: flex;
     flex-direction: column;
     padding: 6px;
-    /* --- FIX: Remove margin as the grid 'gap' handles spacing --- */
     border-radius: 6px;
     background: rgba(0, 0, 0, 0.5);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
@@ -128,7 +117,6 @@ html, body {
     min-height: 55px;
 }
 
-/* Player Info Header with name and class on same line */
 .player-header {
     display: flex;
     align-items: center;
@@ -136,18 +124,16 @@ html, body {
     margin-bottom: 2px;
 }
 
-/* --- FIX: Make the player-info container flexible --- */
 .player-info {
     display: flex;
     justify-content: space-between;
-    align-items: baseline; /* Align name and class along their baseline */
-    gap: 5px; /* Add a small gap */
+    align-items: baseline; 
+    gap: 5px; 
     width: 100%;
-    min-width: 0; /* Allow the container to shrink */
+    min-width: 0; 
     border-bottom: 1px solid #ffffff50;
 }
 
-/* --- FIX: Allow the name to shrink and truncate --- */
 .name {
     font-size: 12px;
     font-weight: bold;
@@ -155,18 +141,17 @@ html, body {
     overflow: hidden;
     text-overflow: ellipsis;
     color: #fff;
-    min-width: 0; /* Allow the name to shrink */
-    flex-shrink: 1; /* Allow the name to shrink if space is needed */
+    min-width: 0; 
+    flex-shrink: 1; 
 }
 
 .class {
     font-size: 10px;
     color: #fff;
     white-space: nowrap;
-    flex-shrink: 0; /* Prevent the class name from shrinking */
+    flex-shrink: 0; 
 }
 
-/* Second row: The Bars themselves */
 .bars-container {
     display: flex;
     flex-direction: column;
@@ -174,7 +159,6 @@ html, body {
     min-width: 0;
 }
 
-/* Base bar styling */
 .bar-row {
     display: flex;
     align-items: center;
@@ -216,7 +200,6 @@ html, body {
     text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
 }
 
-/* Bar background that fills the row */
 .bar-fill {
     position: absolute;
     top: 0;
@@ -227,7 +210,6 @@ html, body {
     z-index: 1;
 }
 
-/* Increased bar heights */
 .dps-bar-row {
     height: 18px;
 }
@@ -243,7 +225,6 @@ html, body {
     background-color: var(--color-hps);
 }
 
-/* Server Status Indicator */
 #serverStatus {
     width: 8px;
     height: 8px;

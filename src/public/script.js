@@ -1,4 +1,3 @@
-// Define an array of visually distinct hues for rotation
 const colorHues = [
     210, // Blue
     30,  // Orange
@@ -15,8 +14,7 @@ let colorIndex = 0;
 
 function getNextColorShades() {
     const h = colorHues[colorIndex];
-    colorIndex = (colorIndex + 1) % colorHues.length; // Move to the next index, looping back if necessary
-    
+    colorIndex = (colorIndex + 1) % colorHues.length; 
     const s = 90;
     const l_dps = 30;
     const l_hps = 20;
@@ -39,7 +37,6 @@ let lastWebSocketMessage = Date.now();
 const WEBSOCKET_RECONNECT_INTERVAL = 5000;
 const MAX_ROWS_PER_COLUMN = 5;
 
-// This will be http://localhost:xxxx where xxxx is the correct dynamic port
 const SERVER_URL = "localhost:8990";
 
 function formatNumber(num) {
@@ -50,7 +47,6 @@ function formatNumber(num) {
 }
 
 function renderDataList(users) {
-    // Clear all existing columns and data items
     columnsContainer.innerHTML = '';
 
     const totalDPS = users.reduce((sum, user) => sum + user.total_dps, 0);
@@ -58,9 +54,8 @@ function renderDataList(users) {
 
     users.sort((a, b) => b.total_dps - a.total_dps);
 
-    let currentList = null; // A reference to the current <ul> element
+    let currentList = null;
     users.forEach((user, index) => {
-        // Create a new column (<ul>) for every N items
         if (index % MAX_ROWS_PER_COLUMN === 0) {
             currentList = document.createElement('ul');
             currentList.className = 'data-list';
@@ -118,7 +113,6 @@ function updateAll() {
     renderDataList(usersArray);
 }
 
-// --- THIS FUNCTION HAS BEEN CORRECTED ---
 function processDataUpdate(data) {
     if (isPaused) return;
     if (!data.user) {
@@ -130,23 +124,19 @@ function processDataUpdate(data) {
         const newUser = data.user[userId];
         const existingUser = allUsers[userId] || {};
 
-        // Merge all numeric and structural data from the new packet first
         const updatedUser = {
             ...existingUser,
             ...newUser,
             id: userId,
         };
 
-        // A new name is only accepted if it's a non-empty string and not the Chinese "Unknown" placeholder.
         const hasNewValidName = newUser.name && typeof newUser.name === 'string' && newUser.name !== "未知";
         if (hasNewValidName) {
             updatedUser.name = newUser.name;
         } else if (!existingUser.name || existingUser.name === '...') {
-            // Only set to placeholder if no name has ever been seen for this user
             updatedUser.name = '...';
         }
 
-        // A new profession is only accepted if it's a non-empty string.
         const hasNewProfession = newUser.profession && typeof newUser.profession === 'string';
         if (hasNewProfession) {
             updatedUser.profession = newUser.profession;
@@ -154,7 +144,6 @@ function processDataUpdate(data) {
             updatedUser.profession = '';
         }
 
-        // A new fightPoint is only accepted if it's a valid number.
         const hasNewFightPoint = newUser.fightPoint !== undefined && typeof newUser.fightPoint === 'number';
         if (hasNewFightPoint) {
             updatedUser.fightPoint = newUser.fightPoint;
