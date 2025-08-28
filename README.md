@@ -1,10 +1,11 @@
 # BPSR-PSO
 
-A brief, one-sentence description of what this project does.
+Blue Protocol: Star Resonance - Per Second Overlay
+Provides a useful GUI to track DPS / HPS for nearby players
 
 ## About the Project
 
-This section provides a more detailed explanation of the project. You can describe its purpose, its key features, and the problem it aims to solve.
+This is a standalone application and does not interface with BPSR or modify any of its files. It analyzes packet while in transit. 
 
 ## Getting Started
 
@@ -22,7 +23,7 @@ You'll need to have the following software installed:
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/Chase-Simmons/BPSR-PSO.git](https://github.com/Chase-Simmons/BPSR-PSO.git)
+    git clone https://github.com/Chase-Simmons/BPSR-PSO.git
     ```
 
 2.  **Navigate into the project directory:**
