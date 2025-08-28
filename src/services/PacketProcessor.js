@@ -9,7 +9,6 @@ import { BinaryReader } from '../models/BinaryReader.js';
 const require = createRequire(import.meta.url);
 const pb = require('../algo/blueprotobuf.js');
 
-
 const MessageType = {
     None: 0,
     Call: 1,
@@ -232,7 +231,16 @@ export class PacketProcessor {
             const damageSource = syncDamageInfo.DamageSource ?? 0;
             if (isTargetPlayer) {
                 if (isHeal) {
-                    this.userDataManager.addHealing(isAttackerPlayer ? attackerUuid.toNumber() : 0, skillId, damageElement, damage.toNumber(), isCrit, isLucky, isCauseLucky, targetUuid.toNumber());
+                    this.userDataManager.addHealing(
+                        isAttackerPlayer ? attackerUuid.toNumber() : 0,
+                        skillId,
+                        damageElement,
+                        damage.toNumber(),
+                        isCrit,
+                        isLucky,
+                        isCauseLucky,
+                        targetUuid.toNumber()
+                    );
                 } else {
                     this.userDataManager.addTakenDamage(targetUuid.toNumber(), damage.toNumber(), isDead);
                 }
@@ -240,7 +248,17 @@ export class PacketProcessor {
                     this.userDataManager.setAttrKV(targetUuid.toNumber(), 'hp', 0);
                 }
             } else if (!isHeal && isAttackerPlayer) {
-                this.userDataManager.addDamage(attackerUuid.toNumber(), skillId, damageElement, damage.toNumber(), isCrit, isLucky, isCauseLucky, hpLessenValue.toNumber(), targetUuid.toNumber());
+                this.userDataManager.addDamage(
+                    attackerUuid.toNumber(),
+                    skillId,
+                    damageElement,
+                    damage.toNumber(),
+                    isCrit,
+                    isLucky,
+                    isCauseLucky,
+                    hpLessenValue.toNumber(),
+                    targetUuid.toNumber()
+                );
             }
             let extra = [];
             if (isCrit) extra.push('Crit');
@@ -309,9 +327,12 @@ export class PacketProcessor {
             const vData = syncContainerData.VData;
             if (!vData.CharId) return;
             const playerUid = vData.CharId.toNumber();
-            if (vData.RoleLevel && vData.RoleLevel.Level) this.userDataManager.setAttrKV(playerUid, 'level', vData.RoleLevel.Level);
-            if (vData.Attr && vData.Attr.CurHp) this.userDataManager.setAttrKV(playerUid, 'hp', vData.Attr.CurHp.toNumber());
-            if (vData.Attr && vData.Attr.MaxHp) this.userDataManager.setAttrKV(playerUid, 'max_hp', vData.Attr.MaxHp.toNumber());
+            if (vData.RoleLevel && vData.RoleLevel.Level)
+                this.userDataManager.setAttrKV(playerUid, 'level', vData.RoleLevel.Level);
+            if (vData.Attr && vData.Attr.CurHp)
+                this.userDataManager.setAttrKV(playerUid, 'hp', vData.Attr.CurHp.toNumber());
+            if (vData.Attr && vData.Attr.MaxHp)
+                this.userDataManager.setAttrKV(playerUid, 'max_hp', vData.Attr.MaxHp.toNumber());
             if (!vData.CharBase) return;
             const charBase = vData.CharBase;
             if (charBase.Name) this.userDataManager.setName(playerUid, charBase.Name);
@@ -322,7 +343,9 @@ export class PacketProcessor {
                 this.userDataManager.setProfession(playerUid, getProfessionNameFromId(professionList.CurProfessionId));
         } catch (err) {
             fs.writeFileSync('./SyncContainerData.dat', payloadBuffer);
-            this.logger.warn(`Failed to decode SyncContainerData for player ${currentUserUuid.shiftRight(16)}. Please report to developer`);
+            this.logger.warn(
+                `Failed to decode SyncContainerData for player ${currentUserUuid.shiftRight(16)}. Please report to developer`
+            );
             throw err;
         }
     }
@@ -373,11 +396,15 @@ export class PacketProcessor {
                 if (!doesStreamHaveIdentifier(messageReader)) break;
                 fieldIndex = messageReader.readUInt32LE();
                 messageReader.readInt32();
-                if (fieldIndex === 1) { // CurProfessionId
+                if (fieldIndex === 1) {
+                    // CurProfessionId
                     const curProfessionId = messageReader.readUInt32LE();
                     messageReader.readInt32();
                     if (curProfessionId)
-                        this.userDataManager.setProfession(currentUserUuid.shiftRight(16).toNumber(), getProfessionNameFromId(curProfessionId));
+                        this.userDataManager.setProfession(
+                            currentUserUuid.shiftRight(16).toNumber(),
+                            getProfessionNameFromId(curProfessionId)
+                        );
                 }
                 break;
         }
@@ -553,7 +580,9 @@ export class PacketProcessor {
                 }
             }
         } catch (e) {
-            this.logger.error(`Fatal error while parsing packet data for player ${currentUserUuid.shiftRight(16)}.\nErr: ${e.stack}`);
+            this.logger.error(
+                `Fatal error while parsing packet data for player ${currentUserUuid.shiftRight(16)}.\nErr: ${e.stack}`
+            );
         }
     }
     processDataChunk(dataChunk) {
@@ -575,7 +604,7 @@ export class PacketProcessor {
             // Sanity check: If the size is unreasonable, the stream is corrupt.
             if (packetSize < MIN_PACKET_SIZE || packetSize > MAX_PACKET_SIZE) {
                 this.logger.warn(`Invalid packet length detected: ${packetSize}. Clearing internal buffer to recover.`);
-                this.internalBuffer = Buffer.alloc(0); 
+                this.internalBuffer = Buffer.alloc(0);
                 break;
             }
 
@@ -595,7 +624,7 @@ export class PacketProcessor {
     _processSinglePacket(packetBuffer) {
         try {
             const packetReader = new BinaryReader(packetBuffer);
-            packetReader.readUInt32(); 
+            packetReader.readUInt32();
             const packetType = packetReader.readUInt16();
             const isZstdCompressed = (packetType & 0x8000) !== 0;
             const msgTypeId = packetType & 0x7fff;
@@ -616,7 +645,7 @@ export class PacketProcessor {
                     if (isZstdCompressed) {
                         nestedPacket = this._decompressPayload(nestedPacket);
                     }
-                    
+
                     // Recursively process nested packets
                     this.processDataChunk(nestedPacket);
                     break;
@@ -624,7 +653,6 @@ export class PacketProcessor {
                     // Silently ignore unknown packet types
                     break;
             }
-        } catch (e) {
-        }
+        } catch (e) {}
     }
 }

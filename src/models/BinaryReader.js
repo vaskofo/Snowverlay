@@ -52,7 +52,7 @@ export class BinaryReader {
 
     readBytes(length) {
         if (this.offset + length > this.buffer.length) {
-            throw new Error("Attempt to read beyond buffer length");
+            throw new Error('Attempt to read beyond buffer length');
         }
         const value = this.buffer.subarray(this.offset, this.offset + length);
         this.offset += length;
@@ -61,7 +61,7 @@ export class BinaryReader {
 
     peekBytes(length) {
         if (this.offset + length > this.buffer.length) {
-            throw new Error("Attempt to peek beyond buffer length");
+            throw new Error('Attempt to peek beyond buffer length');
         }
         return this.buffer.subarray(this.offset, this.offset + length);
     }

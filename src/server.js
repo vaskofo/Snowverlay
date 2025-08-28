@@ -64,14 +64,14 @@ export async function startServer(deviceParam, logLevel = 'info') {
 
             process.on('SIGINT', () => userDataManager.forceUserCacheSave().then(() => process.exit(0)));
             process.on('SIGTERM', () => userDataManager.forceUserCacheSave().then(() => process.exit(0)));
-            
+
             let isPaused = false;
             setInterval(() => {
                 if (!isPaused) {
                     userDataManager.updateAllRealtimeDps();
                 }
             }, 100);
-            
+
             const app = express();
             app.use(cors());
             app.use(express.static(path.join(__dirname, 'public')));
@@ -104,7 +104,12 @@ export async function startServer(deviceParam, logLevel = 'info') {
 
             const clearDataOnServerChange = () => {
                 userDataManager.refreshEnemyCache();
-                if (!globalSettings.autoClearOnServerChange || userDataManager.lastLogTime === 0 || userDataManager.users.size === 0) return;
+                if (
+                    !globalSettings.autoClearOnServerChange ||
+                    userDataManager.lastLogTime === 0 ||
+                    userDataManager.users.size === 0
+                )
+                    return;
                 userDataManager.clearAll();
                 logger.info('Server changed, statistics cleared!');
             };
@@ -123,12 +128,13 @@ export async function startServer(deviceParam, logLevel = 'info') {
                 }
             }, 100);
 
-            const checkPort = (port) => new Promise(resolve => {
-                const s = net.createServer();
-                s.once('error', () => resolve(false));
-                s.once('listening', () => s.close(() => resolve(true)));
-                s.listen(port);
-            });
+            const checkPort = (port) =>
+                new Promise((resolve) => {
+                    const s = net.createServer();
+                    s.once('error', () => resolve(false));
+                    s.once('listening', () => s.close(() => resolve(true)));
+                    s.listen(port);
+                });
 
             let server_port = 8990;
             while (!(await checkPort(server_port))) {
@@ -140,7 +146,7 @@ export async function startServer(deviceParam, logLevel = 'info') {
                 const url = `http://localhost:${server_port}`;
                 logger.info(`Web Server started at ${url}`);
                 logger.info('WebSocket Server started');
-                
+
                 logger.info('Welcome!');
                 logger.info('Attempting to find the game server, please wait!');
 
@@ -202,7 +208,12 @@ export async function startServer(deviceParam, logLevel = 'info') {
                         fragmentIpCache.delete(_key);
                         return fullPayload;
                     }
-                    return Buffer.from(frameBuffer.subarray(ipPacket.offset, ipPacket.offset + (ipPacket.info.totallen - ipPacket.hdrlen)));
+                    return Buffer.from(
+                        frameBuffer.subarray(
+                            ipPacket.offset,
+                            ipPacket.offset + (ipPacket.info.totallen - ipPacket.hdrlen)
+                        )
+                    );
                 };
 
                 const c = new Cap();
@@ -215,7 +226,7 @@ export async function startServer(deviceParam, logLevel = 'info') {
                     logger.error('The device seems to be WRONG! Please check the device! Device type: ' + linkType);
                 }
                 c.setMinBytes && c.setMinBytes(0);
-                
+
                 const eth_queue = [];
                 c.on('packet', (nbytes) => {
                     eth_queue.push(Buffer.from(buffer.subarray(0, nbytes)));
@@ -230,12 +241,12 @@ export async function startServer(deviceParam, logLevel = 'info') {
 
                     const tcpBuffer = getTCPPacket(frameBuffer, ethPacket.offset);
                     if (tcpBuffer === null) return;
-                    
+
                     const tcpPacket = decoders.TCP(tcpBuffer);
                     const buf = Buffer.from(tcpBuffer.subarray(tcpPacket.hdrlen));
                     const { srcport, dstport } = tcpPacket.info;
                     const src_server = `${srcaddr}:${srcport} -> ${dstaddr}:${dstport}`;
-                    
+
                     await tcp_lock.acquire();
                     try {
                         if (current_server !== src_server) {
@@ -248,10 +259,12 @@ export async function startServer(deviceParam, logLevel = 'info') {
                                         do {
                                             const len_buf = stream.read(4);
                                             if (!len_buf) break;
-                                            
+
                                             const packetLength = len_buf.readUInt32BE();
                                             if (packetLength > 0x100000 || packetLength < 4) {
-                                                logger.warn(`Invalid packet length during server identification: ${packetLength}. Discarding buffer.`);
+                                                logger.warn(
+                                                    `Invalid packet length during server identification: ${packetLength}. Discarding buffer.`
+                                                );
                                                 stream.destroy();
                                                 break;
                                             }
@@ -260,8 +273,11 @@ export async function startServer(deviceParam, logLevel = 'info') {
                                             if (!data1) break;
 
                                             const signature = Buffer.from([0x00, 0x63, 0x33, 0x53, 0x42, 0x00]); //c3SB??
-                                            if (Buffer.compare(data1.subarray(5, 5 + signature.length), signature) !== 0) break;
-                                            
+                                            if (
+                                                Buffer.compare(data1.subarray(5, 5 + signature.length), signature) !== 0
+                                            )
+                                                break;
+
                                             if (current_server !== src_server) {
                                                 current_server = src_server;
                                                 clearTcpCache();
@@ -274,9 +290,8 @@ export async function startServer(deviceParam, logLevel = 'info') {
                                 }
                                 if (buf.length === 0x62) {
                                     const signature = Buffer.from([
-                                        0x00, 0x00, 0x00, 0x62, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01,
-                                        0x00, 0x11, 0x45, 0x14, 0x00, 0x00, 0x00, 0x00, 0x0a, 0x4e,
-                                        0x08, 0x01, 0x22, 0x24
+                                        0x00, 0x00, 0x00, 0x62, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x11, 0x45,
+                                        0x14, 0x00, 0x00, 0x00, 0x00, 0x0a, 0x4e, 0x08, 0x01, 0x22, 0x24,
                                     ]);
                                     if (
                                         Buffer.compare(buf.subarray(0, 10), signature.subarray(0, 10)) === 0 &&
@@ -287,7 +302,9 @@ export async function startServer(deviceParam, logLevel = 'info') {
                                             clearTcpCache();
                                             tcp_next_seq = tcpPacket.info.seqno + buf.length;
                                             clearDataOnServerChange();
-                                            logger.info('Got Scene Server Address by Login Return Packet: ' + src_server);
+                                            logger.info(
+                                                'Got Scene Server Address by Login Return Packet: ' + src_server
+                                            );
                                         }
                                     }
                                 }
@@ -303,7 +320,7 @@ export async function startServer(deviceParam, logLevel = 'info') {
                             }
                         }
 
-                        if ((tcp_next_seq - tcpPacket.info.seqno) <= 0 || tcp_next_seq === -1) {
+                        if (tcp_next_seq - tcpPacket.info.seqno <= 0 || tcp_next_seq === -1) {
                             tcp_cache.set(tcpPacket.info.seqno, buf);
                         }
 
@@ -320,7 +337,9 @@ export async function startServer(deviceParam, logLevel = 'info') {
                             const packetSize = _data.readUInt32BE();
                             if (_data.length < packetSize) break;
                             if (packetSize > 0x0fffff) {
-                                logger.error(`Invalid Length!! ${_data.length},${packetSize},${_data.toString('hex')},${tcp_next_seq}`);
+                                logger.error(
+                                    `Invalid Length!! ${_data.length},${packetSize},${_data.toString('hex')},${tcp_next_seq}`
+                                );
                                 _data = Buffer.alloc(0);
                                 break;
                             }
@@ -360,7 +379,9 @@ export async function startServer(deviceParam, logLevel = 'info') {
                         logger.debug(`Cleared ${clearedFragments} expired IP fragment caches`);
                     }
                     if (tcp_last_time && Date.now() - tcp_last_time > FRAGMENT_TIMEOUT) {
-                        logger.warn('Cannot capture the next packet! Is the game closed or disconnected? seq: ' + tcp_next_seq);
+                        logger.warn(
+                            'Cannot capture the next packet! Is the game closed or disconnected? seq: ' + tcp_next_seq
+                        );
                         current_server = '';
                         clearTcpCache();
                     }
@@ -370,9 +391,8 @@ export async function startServer(deviceParam, logLevel = 'info') {
             });
 
             server.on('error', (err) => reject(err));
-
         } catch (error) {
-            console.error("Error during server startup:", error);
+            console.error('Error during server startup:', error);
             reject(error);
         }
     });

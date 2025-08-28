@@ -1,20 +1,20 @@
 const colorHues = [
     210, // Blue
-    30,  // Orange
+    30, // Orange
     270, // Purple
     150, // Teal
     330, // Magenta
-    60,  // Yellow
+    60, // Yellow
     180, // Cyan
-    0,   // Red
-    240  // Indigo
+    0, // Red
+    240, // Indigo
 ];
 
 let colorIndex = 0;
 
 function getNextColorShades() {
     const h = colorHues[colorIndex];
-    colorIndex = (colorIndex + 1) % colorHues.length; 
+    colorIndex = (colorIndex + 1) % colorHues.length;
     const s = 90;
     const l_dps = 30;
     const l_hps = 20;
@@ -37,7 +37,7 @@ let lastWebSocketMessage = Date.now();
 const WEBSOCKET_RECONNECT_INTERVAL = 5000;
 const MAX_ROWS_PER_COLUMN = 5;
 
-const SERVER_URL = "localhost:8990";
+const SERVER_URL = 'localhost:8990';
 
 function formatNumber(num) {
     if (isNaN(num)) return 'NaN';
@@ -78,9 +78,9 @@ function renderDataList(users) {
         item.style.setProperty('--dps-percent', `${dpsPercent}%`);
         item.style.setProperty('--hps-percent', `${hpsPercent}%`);
 
-        const isUnknown = user.name === "..." || user.name === "未知";
+        const isUnknown = user.name === '...' || user.name === '未知';
         const professionDisplay = isUnknown || !user.profession ? '' : `<span class="class">${user.profession}</span>`;
-        
+
         item.innerHTML = `
             <div class="player-header">
                 <div class="player-info">
@@ -109,7 +109,7 @@ function renderDataList(users) {
 }
 
 function updateAll() {
-    const usersArray = Object.values(allUsers).filter(user => user.total_dps > 0 || user.total_hps > 0);
+    const usersArray = Object.values(allUsers).filter((user) => user.total_dps > 0 || user.total_hps > 0);
     renderDataList(usersArray);
 }
 
@@ -130,7 +130,7 @@ function processDataUpdate(data) {
             id: userId,
         };
 
-        const hasNewValidName = newUser.name && typeof newUser.name === 'string' && newUser.name !== "未知";
+        const hasNewValidName = newUser.name && typeof newUser.name === 'string' && newUser.name !== '未知';
         if (hasNewValidName) {
             updatedUser.name = newUser.name;
         } else if (!existingUser.name || existingUser.name === '...') {
@@ -153,10 +153,9 @@ function processDataUpdate(data) {
 
         allUsers[userId] = updatedUser;
     }
-    
+
     updateAll();
 }
-
 
 async function clearData() {
     try {
@@ -205,7 +204,7 @@ function connectWebSocket() {
         isWebSocketConnected = false;
         showServerStatus('disconnected');
     });
-    
+
     socket.on('data', (data) => {
         processDataUpdate(data);
         lastWebSocketMessage = Date.now();
@@ -236,12 +235,11 @@ function initialize() {
     setInterval(checkConnection, WEBSOCKET_RECONNECT_INTERVAL);
 }
 
-
 let forward = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     initialize();
-})
+});
 
 window.clearData = clearData;
 window.togglePause = togglePause;

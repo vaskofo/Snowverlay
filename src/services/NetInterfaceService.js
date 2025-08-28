@@ -58,7 +58,7 @@ export async function findByRoute(devices) {
         if (!defaultInterface) return undefined;
 
         const targetInterface = Object.entries(devices).find(([, device]) =>
-            device.addresses.find((address) => address.addr === defaultInterface),
+            device.addresses.find((address) => address.addr === defaultInterface)
         )?.[0];
 
         return parseInt(targetInterface);
@@ -85,14 +85,16 @@ export async function findDefaultNetworkDevice(devices) {
             physical.map(async ([index]) => ({
                 index: parseInt(index),
                 packets: await detectTraffic(parseInt(index), devices),
-            })),
+            }))
         );
 
         // Select adapter with most traffic
         const best = results.filter((r) => r.packets > 0).sort((a, b) => b.packets - a.packets)[0];
 
         if (best) {
-            console.log(`Using adapter with most traffic: ${best.index} - ${devices[best.index].description} (${best.packets} packets)`);
+            console.log(
+                `Using adapter with most traffic: ${best.index} - ${devices[best.index].description} (${best.packets} packets)`
+            );
             return best.index;
         }
 

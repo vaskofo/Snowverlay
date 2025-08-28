@@ -8,7 +8,7 @@ export class StatisticData {
             critical: 0,
             lucky: 0,
             crit_lucky: 0,
-            hpLessen: 0, 
+            hpLessen: 0,
             total: 0,
         };
         this.count = {
@@ -17,8 +17,8 @@ export class StatisticData {
             lucky: 0,
             total: 0,
         };
-        this.realtimeWindow = []; 
-        this.timeRange = []; 
+        this.realtimeWindow = [];
+        this.timeRange = [];
         this.realtimeStats = {
             value: 0,
             max: 0,

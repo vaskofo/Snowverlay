@@ -8,14 +8,14 @@ export class UserDataManager {
     constructor(logger) {
         this.logger = logger;
         this.users = new Map();
-        this.userCache = new Map(); 
+        this.userCache = new Map();
         this.cacheFilePath = './users.json';
 
-        this.saveThrottleDelay = 2000; 
+        this.saveThrottleDelay = 2000;
         this.saveThrottleTimer = null;
         this.pendingSave = false;
 
-        this.hpCache = new Map(); 
+        this.hpCache = new Map();
         this.startTime = Date.now();
 
         this.logLock = new Lock();
@@ -262,7 +262,11 @@ export class UserDataManager {
 
     getAllEnemiesData() {
         const result = {};
-        const enemyIds = new Set([...this.enemyCache.name.keys(), ...this.enemyCache.hp.keys(), ...this.enemyCache.maxHp.keys()]);
+        const enemyIds = new Set([
+            ...this.enemyCache.name.keys(),
+            ...this.enemyCache.hp.keys(),
+            ...this.enemyCache.maxHp.keys(),
+        ]);
         enemyIds.forEach((id) => {
             result[id] = {
                 name: this.enemyCache.name.get(id),
