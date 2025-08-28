@@ -15,33 +15,24 @@
 
     <script>
       const serverUrl = 'http://localhost:8990';
-      const redirectDelay = 1000; // Check every 1 second
+      const redirectDelay = 1000; 
 
       /**
        * Pings the server and redirects if it's online.
        */
       async function checkAndRedirect() {
         try {
-          // Use fetch to check if the server is responsive.
-          // The 'no-cors' mode is used because we don't need to read the response.
-          // We only care if the request succeeds without a network error.
           const response = await fetch(serverUrl, { mode: 'no-cors' });
           
-          // If the fetch succeeds, it means the server is up.
           console.log('Server is online. Redirecting...');
           window.location.href = serverUrl;
 
         } catch (error) {
-          // If the fetch fails (due to network error, server not running, etc.),
-          // the 'catch' block will execute. We stay on the current page.
           console.error('Server is offline. Retrying...', error);
           
-          // Retry the check after a delay.
           setTimeout(checkAndRedirect, redirectDelay);
         }
       }
-
-      // Start the process of checking for the server after the page loads.
       document.addEventListener('DOMContentLoaded', () => {
         checkAndRedirect();
       });
