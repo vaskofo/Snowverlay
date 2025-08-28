@@ -22,7 +22,7 @@ You'll need to have the following software installed:
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/your-username/BPSR-PSO.git](https://github.com/your-username/BPSR-PSO.git)
+    git clone [https://github.com/Chase-Simmons/BPSR-PSO.git](https://github.com/Chase-Simmons/BPSR-PSO.git)
     ```
 
 2.  **Navigate into the project directory:**
