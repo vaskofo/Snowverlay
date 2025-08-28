@@ -36,12 +36,11 @@ let isPaused = false;
 let socket = null;
 let isWebSocketConnected = false;
 let lastWebSocketMessage = Date.now();
-let isMinimized = false;
 const WEBSOCKET_RECONNECT_INTERVAL = 5000;
 const MAX_ROWS_PER_COLUMN = 5;
 
 // This will be http://localhost:xxxx where xxxx is the correct dynamic port
-const SERVER_URL = window.location.origin;
+const SERVER_URL = "localhost:8990";
 
 function formatNumber(num) {
     if (isNaN(num)) return 'NaN';
@@ -86,11 +85,11 @@ function renderDataList(users) {
 
         const isUnknown = user.name === "..." || user.name === "未知";
         const professionDisplay = isUnknown || !user.profession ? '' : `<span class="class">${user.profession}</span>`;
-
+        
         item.innerHTML = `
             <div class="player-header">
                 <div class="player-info">
-                    <span class="name" title="${user.name}">${user.name}</span>
+                    <span class="name">${user.fightPoint ? `${user.name} (${user.fightPoint})` : user.name}</span>
                     ${professionDisplay}
                 </div>
             </div>
@@ -109,6 +108,7 @@ function renderDataList(users) {
                 </div>
             </div>
         `;
+
         currentList.appendChild(item);
     });
 }
@@ -118,8 +118,9 @@ function updateAll() {
     renderDataList(usersArray);
 }
 
+// --- THIS FUNCTION HAS BEEN CORRECTED ---
 function processDataUpdate(data) {
-    if (isPaused || isMinimized) return;
+    if (isPaused) return;
     if (!data.user) {
         console.warn('Received data without a "user" object:', data);
         return;
@@ -129,32 +130,37 @@ function processDataUpdate(data) {
         const newUser = data.user[userId];
         const existingUser = allUsers[userId] || {};
 
-        // Start with the existing user data to preserve old values
-        const updatedUser = { ...existingUser };
+        // Merge all numeric and structural data from the new packet first
+        const updatedUser = {
+            ...existingUser,
+            ...newUser,
+            id: userId,
+        };
 
-        // Merge all properties from the new user data over the old
-        Object.assign(updatedUser, newUser);
-        updatedUser.id = userId; // Ensure ID is always set
-
-        // --- CORRECTED NAME & PROFESSION LOGIC ---
         // A new name is only accepted if it's a non-empty string and not the Chinese "Unknown" placeholder.
         const hasNewValidName = newUser.name && typeof newUser.name === 'string' && newUser.name !== "未知";
         if (hasNewValidName) {
             updatedUser.name = newUser.name;
         } else if (!existingUser.name || existingUser.name === '...') {
-            // If there was no valid name before, set/keep the placeholder.
+            // Only set to placeholder if no name has ever been seen for this user
             updatedUser.name = '...';
         }
-        // If there's no new valid name, the existing valid name from the spread/assign is preserved.
 
-        // Only update the profession if the new data provides one.
+        // A new profession is only accepted if it's a non-empty string.
         const hasNewProfession = newUser.profession && typeof newUser.profession === 'string';
         if (hasNewProfession) {
             updatedUser.profession = newUser.profession;
         } else if (!existingUser.profession) {
             updatedUser.profession = '';
         }
-        // If there's no new profession, the existing one is preserved.
+
+        // A new fightPoint is only accepted if it's a valid number.
+        const hasNewFightPoint = newUser.fightPoint !== undefined && typeof newUser.fightPoint === 'number';
+        if (hasNewFightPoint) {
+            updatedUser.fightPoint = newUser.fightPoint;
+        } else if (existingUser.fightPoint === undefined) {
+            updatedUser.fightPoint = 0;
+        }
 
         allUsers[userId] = updatedUser;
     }
@@ -165,8 +171,7 @@ function processDataUpdate(data) {
 
 async function clearData() {
     try {
-        // Use the dynamic SERVER_URL variable
-        const response = await fetch(`${SERVER_URL}/api/clear`);
+        const response = await fetch(`http://${SERVER_URL}/api/clear`);
         const result = await response.json();
 
         if (result.code === 0) {
@@ -189,20 +194,8 @@ function togglePause() {
     showServerStatus(isPaused ? 'paused' : 'active');
 }
 
-function toggleMinimize() {
-    const mainContainer = document.querySelector('.main-container');
-    const minimizeButton = document.getElementById('minimizeButton');
-
-    isMinimized = !isMinimized;
-    if (isMinimized) {
-        mainContainer.classList.add('minimized');
-        minimizeButton.innerText = 'Open';
-        showServerStatus('minimized');
-    } else {
-        mainContainer.classList.remove('minimized');
-        minimizeButton.innerText = '_';
-        showServerStatus('active');
-    }
+function closeClient() {
+    window.electronAPI.closeClient();
 }
 
 function showServerStatus(status) {
@@ -211,7 +204,6 @@ function showServerStatus(status) {
 }
 
 function connectWebSocket() {
-    // Use the dynamic SERVER_URL variable
     socket = io(SERVER_URL);
 
     socket.on('connect', () => {
@@ -255,9 +247,12 @@ function initialize() {
     setInterval(checkConnection, WEBSOCKET_RECONNECT_INTERVAL);
 }
 
-document.addEventListener('DOMContentLoaded', initialize);
 
-// Expose functions to the global scope for onclick attributes
+let forward = false;
+
+document.addEventListener('DOMContentLoaded', () => {
+    initialize();
+})
+
 window.clearData = clearData;
 window.togglePause = togglePause;
-window.toggleMinimize = toggleMinimize;

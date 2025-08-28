@@ -3,13 +3,20 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 
 module.exports = {
   packagerConfig: {
+    name: 'BPSR-PSO',
+    icon: './resources/ico',
     asar: true,
+    extraResource: [
+      './resources/npcap-1.83.exe' 
+    ]
   },
   rebuildConfig: {},
   makers: [
     {
       name: '@electron-forge/maker-squirrel',
-      config: {},
+      config: {
+        setupIcon: './resources/icon.ico',
+      },
     },
     {
       name: '@electron-forge/maker-zip',

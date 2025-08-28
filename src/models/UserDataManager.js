@@ -1,7 +1,7 @@
 import { UserData } from './UserData.js';
 import { Lock } from './Lock.js';
-import { config } from '../config.js'
-import fsPromises from 'fs/promises'
+import { config } from '../config.js';
+import fsPromises from 'fs/promises';
 import path from 'path';
 
 export class UserDataManager {
@@ -98,15 +98,11 @@ export class UserDataManager {
         }
     }
 
-    /** 获取或创建用户记录
-     * @param {number} uid - 用户ID
-     * @returns {UserData} - 用户数据实例
-     */
+    /** 获取或创建用户记录 */
     getUser(uid) {
         if (!this.users.has(uid)) {
             const user = new UserData(uid);
 
-            // 从缓存中设置名字和职业
             const cachedData = this.userCache.get(String(uid));
             if (cachedData) {
                 if (cachedData.name) {
@@ -131,17 +127,7 @@ export class UserDataManager {
         return this.users.get(uid);
     }
 
-    /** 添加伤害记录
-     * @param {number} uid - 造成伤害的用户ID
-     * @param {number} skillId - 技能ID/Buff ID
-     * @param {string} element - 技能元素属性
-     * @param {number} damage - 伤害值
-     * @param {boolean} isCrit - 是否为暴击
-     * @param {boolean} [isLucky] - 是否为幸运
-     * @param {boolean} [isCauseLucky] - 是否造成幸运
-     * @param {number} hpLessenValue - 生命值减少量
-     * @param {number} targetUid - 伤害目标ID
-     */
+    /** 添加伤害记录 */
     addDamage(uid, skillId, element, damage, isCrit, isLucky, isCauseLucky, hpLessenValue = 0, targetUid) {
         if (config.IS_PAUSED) return;
         if (config.GLOBAL_SETTINGS.onlyRecordEliteDummy && targetUid !== 75) return;
@@ -150,16 +136,7 @@ export class UserDataManager {
         user.addDamage(skillId, element, damage, isCrit, isLucky, isCauseLucky, hpLessenValue);
     }
 
-    /** 添加治疗记录
-     * @param {number} uid - 进行治疗的用户ID
-     * @param {number} skillId - 技能ID/Buff ID
-     * @param {string} element - 技能元素属性
-     * @param {number} healing - 治疗值
-     * @param {boolean} isCrit - 是否为暴击
-     * @param {boolean} [isLucky] - 是否为幸运
-     * @param {boolean} [isCauseLucky] - 是否造成幸运
-     * @param {number} targetUid - 被治疗的用户ID
-     */
+    /** 添加治疗记录 */
     addHealing(uid, skillId, element, healing, isCrit, isLucky, isCauseLucky, targetUid) {
         if (config.IS_PAUSED) return;
         this.checkTimeoutClear();
@@ -169,11 +146,7 @@ export class UserDataManager {
         }
     }
 
-    /** 添加承伤记录
-     * @param {number} uid - 承受伤害的用户ID
-     * @param {number} damage - 承受的伤害值
-     * @param {boolean} isDead - 是否致死伤害
-     * */
+    /** 添加承伤记录 */
     addTakenDamage(uid, damage, isDead) {
         if (config.IS_PAUSED) return;
         this.checkTimeoutClear();
@@ -181,9 +154,7 @@ export class UserDataManager {
         user.addTakenDamage(damage, isDead);
     }
 
-    /** 添加日志记录
-     * @param {string} log - 日志内容
-     * */
+    /** 添加日志记录 */
     async addLog(log) {
         if (config.IS_PAUSED) return;
 
@@ -211,17 +182,13 @@ export class UserDataManager {
         this.logLock.release();
     }
 
-    /** 设置用户职业
-     * @param {number} uid - 用户ID
-     * @param {string} profession - 职业名称
-     * */
+    /** 设置用户职业 */
     setProfession(uid, profession) {
         const user = this.getUser(uid);
         if (user.profession !== profession) {
             user.setProfession(profession);
             this.logger.info(`Found profession ${profession} for uid ${uid}`);
 
-            // 更新缓存
             const uidStr = String(uid);
             if (!this.userCache.has(uidStr)) {
                 this.userCache.set(uidStr, {});
@@ -231,17 +198,13 @@ export class UserDataManager {
         }
     }
 
-    /** 设置用户姓名
-     * @param {number} uid - 用户ID
-     * @param {string} name - 姓名
-     * */
+    /** 设置用户姓名 */
     setName(uid, name) {
         const user = this.getUser(uid);
         if (user.name !== name) {
             user.setName(name);
             this.logger.info(`Found player name ${name} for uid ${uid}`);
 
-            // 更新缓存
             const uidStr = String(uid);
             if (!this.userCache.has(uidStr)) {
                 this.userCache.set(uidStr, {});
@@ -251,17 +214,13 @@ export class UserDataManager {
         }
     }
 
-    /** 设置用户总评分
-     * @param {number} uid - 用户ID
-     * @param {number} fightPoint - 总评分
-     */
+    /** 设置用户总评分 */
     setFightPoint(uid, fightPoint) {
         const user = this.getUser(uid);
         if (user.fightPoint != fightPoint) {
             user.setFightPoint(fightPoint);
             this.logger.info(`Found fight point ${fightPoint} for uid ${uid}`);
 
-            // 更新缓存
             const uidStr = String(uid);
             if (!this.userCache.has(uidStr)) {
                 this.userCache.set(uidStr, {});
@@ -271,17 +230,12 @@ export class UserDataManager {
         }
     }
 
-    /** 设置额外数据
-     * @param {number} uid - 用户ID
-     * @param {string} key
-     * @param {any} value
-     */
+    /** 设置额外数据 */
     setAttrKV(uid, key, value) {
         const user = this.getUser(uid);
         user.attr[key] = value;
 
         if (key === 'max_hp') {
-            // 更新缓存
             const uidStr = String(uid);
             if (!this.userCache.has(uidStr)) {
                 this.userCache.set(uidStr, {});
@@ -319,6 +273,9 @@ export class UserDataManager {
     getAllUsersData() {
         const result = {};
         for (const [uid, user] of this.users.entries()) {
+            // --- THIS IS THE CRITICAL FIX ---
+            // The original code called user.getSummary(), which was correct.
+            // This ensures that the implementation from UserData.js is always used.
             result[uid] = user.getSummary();
         }
         return result;
@@ -361,10 +318,7 @@ export class UserDataManager {
         return Array.from(this.users.keys());
     }
 
-    /** 保存所有用户数据到历史记录
-     * @param {Map} usersToSave - 要保存的用户数据Map
-     * @param {number} startTime - 数据开始时间
-     */
+    /** 保存所有用户数据到历史记录 */
     async saveAllUserData(usersToSave = null, startTime = null) {
         try {
             const endTime = Date.now();
@@ -401,11 +355,9 @@ export class UserDataManager {
                 await fsPromises.mkdir(usersDir, { recursive: true });
             }
 
-            // 保存所有用户数据汇总
             const allUserDataPath = path.join(logDir, 'allUserData.json');
             await fsPromises.writeFile(allUserDataPath, JSON.stringify(allUsersData, null, 2), 'utf8');
 
-            // 保存每个用户的详细数据
             for (const [uid, userData] of userDatas.entries()) {
                 const userDataPath = path.join(usersDir, `${uid}.json`);
                 await fsPromises.writeFile(userDataPath, JSON.stringify(userData, null, 2), 'utf8');

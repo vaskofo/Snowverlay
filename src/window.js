@@ -19,8 +19,12 @@ export function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 500,
     height: 365,
+    minWidth: 280,
+    minHeight: 40,
     transparent: true,
     frame: false,
+    title: 'BPSR-PSO',
+    icon: path.join(__dirname, '..', 'resources', 'ico.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
