@@ -47,6 +47,7 @@ function formatNumber(num) {
 }
 
 function renderDataList(users) {
+    // Clear the columns container first
     columnsContainer.innerHTML = '';
 
     const totalDPS = users.reduce((sum, user) => sum + user.total_dps, 0);
@@ -54,14 +55,7 @@ function renderDataList(users) {
 
     users.sort((a, b) => b.total_dps - a.total_dps);
 
-    let currentList = null;
-    users.forEach((user, index) => {
-        if (index % MAX_ROWS_PER_COLUMN === 0) {
-            currentList = document.createElement('ul');
-            currentList.className = 'data-list';
-            columnsContainer.appendChild(currentList);
-        }
-
+    users.forEach((user) => {
         const dpsPercent = totalDPS > 0 ? (user.total_dps / totalDPS) * 100 : 0;
         const hpsPercent = totalHPS > 0 ? (user.total_hps / totalHPS) * 100 : 0;
 
@@ -104,10 +98,9 @@ function renderDataList(users) {
             </div>
         `;
 
-        currentList.appendChild(item);
+        columnsContainer.appendChild(item);
     });
 }
-
 function updateAll() {
     const usersArray = Object.values(allUsers).filter((user) => user.total_dps > 0 || user.total_hps > 0);
     renderDataList(usersArray);

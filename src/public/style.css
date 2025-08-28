@@ -10,26 +10,31 @@ html, body {
     font-size: 12px;
     box-sizing: border-box;
     min-width: 256px;
+    -webkit-font-smoothing: antialiased;
 }
 
 #app-wrapper {
     width: 100%;
     height: 100%;
-    pointer-events: none; 
+    pointer-events: none;
+    padding: 0px;
+    overflow: hidden;
 }
 
 .main-container {
-    pointer-events: auto; 
+    pointer-events: auto;
     display: flex;
     flex-direction: column;
     height: 100%;
-    padding: 0px;
     box-sizing: border-box;
-    border: #74747440 2px solid;
-    border-radius: 10px;
-    background-color: transparent;
+    border-radius: 12px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
 }
-
 
 .controls {
     -webkit-app-region: drag;
@@ -37,167 +42,195 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 5px;
-    flex-shrink: 0;
-    padding: 5px 10px;
-    background: rgba(0, 0, 0, 0.5);
-    border-radius: 8px 8px 0 0; 
-}
-
-.controls button {
-    -webkit-app-region: no-drag;
-    user-select: none;
-    background: rgba(255, 255, 255, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #e0e0e0;
-    padding: 3px 8px;
-    border-radius: 4px;
-    font-size: 10px;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-}
-.controls button:hover {
-    background: rgba(255, 255, 255, 0.3);
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .title-container {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     user-select: none;
 }
 
 .app-title {
-    font-size: 14px;
-    font-weight: bold;
+    font-size: 16px;
+    font-weight: 700;
     color: #fff;
     white-space: nowrap;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.7);
 }
+
+.button-group {
+    -webkit-app-region: no-drag;
+    display: flex;
+    gap: 8px;
+}
+
+.button-group button {
+    -webkit-app-region: no-drag;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.button-group button:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+}
+.button-group button:active {
+    transform: translateY(0);
+}
+
+#closeButton {
+    background-color: rgba(255, 0, 0, 0.4);
+    border-color: rgba(255, 0, 0, 0.6);
+}
+#closeButton:hover {
+    background-color: rgba(255, 0, 0, 0.6);
+}
+
+#serverStatus {
+    width: 10px !important;
+    height: 10px !important;
+    border-radius: 50%;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+    flex-shrink: 0;
+    transition: background-color 0.3s ease;
+}
+
+#serverStatus.connected { background-color: #4CAF50; box-shadow: 0 0 8px #4CAF50; }
+#serverStatus.disconnected { background-color: #F44336; box-shadow: 0 0 8px #F44336; }
+#serverStatus.reconnecting { background-color: #FFEB3B; box-shadow: 0 0 8px #FFEB3B; }
+#serverStatus.cleared { background-color: #2196F3; box-shadow: 0 0 8px #2196F3; }
+#serverStatus.paused { background-color: #FF9800; box-shadow: 0 0 8px #FF9800; }
 
 .columns-container {
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(250px, 1fr); 
-    grid-template-rows: repeat(auto-fill, minmax(66px, min-content));
-    gap: 5px;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 8px;
     flex-grow: 1;
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow-y: auto; 
+    overflow-x: hidden;
     min-width: 0;
-    padding: 2px;
+    padding: 8px;
 }
-.main-container.minimized .columns-container {
-    height: 0;
-    padding: 0;
-    opacity: 0;
-    pointer-events: none;
-}
-
 .columns-container::-webkit-scrollbar {
     display: none;
 }
-
 .columns-container {
     scrollbar-width: none;
 }
 
 .data-list {
-    display: contents;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    flex-shrink: 0;
+    min-height: 0;
 }
 
 .data-item {
+    flex: 1;
+    width: auto;
+    min-width: 250px;
     display: flex;
     flex-direction: column;
-    padding: 6px;
-    border-radius: 6px;
-    background: rgba(0, 0, 0, 0.5);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    padding: 8px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
     overflow: hidden;
-    min-height: 55px;
-}
-
-.player-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 2px;
+    height: auto;
+    min-height: 0;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: background 0.3s ease;
 }
 
 .player-info {
     display: flex;
     justify-content: space-between;
-    align-items: baseline; 
-    gap: 5px; 
+    align-items: center;
+    gap: 10px;
     width: 100%;
-    min-width: 0; 
-    border-bottom: 1px solid #ffffff50;
+    min-width: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding-bottom: 5px;
+    margin-bottom: 5px;
 }
 
 .name {
-    font-size: 12px;
-    font-weight: bold;
+    font-size: 13px;
+    font-weight: 700;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     color: #fff;
-    min-width: 0; 
-    flex-shrink: 1; 
+    min-width: 0;
 }
 
 .class {
-    font-size: 10px;
-    color: #fff;
+    font-size: 11px;
+    color: #b0b0b0;
     white-space: nowrap;
-    flex-shrink: 0; 
+    flex-shrink: 0;
+    font-style: italic;
 }
 
 .bars-container {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
     min-width: 0;
 }
 
 .bar-row {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 8px;
     position: relative;
-    padding: 0 5px;
+    height: 18px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .bar-label {
-    font-size: 9px;
-    color: #e0e0e0;
-    font-weight: bold;
+    font-size: 10px;
+    color: #fff;
+    font-weight: 700;
     letter-spacing: 0.5px;
     flex-shrink: 0;
     z-index: 2;
     white-space: nowrap;
+    padding-left: 8px;
+}
+
+.bar-value-total, .bar-value-rate {
+    font-size: 11px;
+    color: #fff;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    z-index: 2;
 }
 
 .bar-value-total {
-    font-size: 10px;
-    color: #e0e0e0;
-    font-weight: bold;
     flex-grow: 1;
-    flex-basis: 0;
     text-align: left;
-    z-index: 2;
-    white-space: nowrap;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
 }
 
 .bar-value-rate {
-    font-size: 10px;
-    color: #e0e0e0;
-    font-weight: bold;
     text-align: right;
-    flex-shrink: 0;
-    z-index: 2;
-    white-space: nowrap;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    padding-right: 8px;
 }
 
 .bar-fill {
@@ -205,35 +238,20 @@ html, body {
     top: 0;
     left: 0;
     height: 100%;
-    border-radius: 2px;
-    transition: width 0.3s ease-out;
+    border-radius: 4px;
+    transition: width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
     z-index: 1;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
 }
 
-.dps-bar-row {
-    height: 18px;
-}
 .dps-bar-fill {
     background-color: var(--color-dps);
-    box-shadow: 0 0 2px var(--color-dps-shadow);
 }
 
-.hps-bar-row {
-    height: 15px;
-}
 .hps-bar-fill {
     background-color: var(--color-hps);
 }
 
-#serverStatus {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    box-shadow: 0 0 5px rgba(0,0,0,0.5);
-    flex-shrink: 0;
+.data-item.is-active {
+    background: rgba(255, 255, 255, 0.1);
 }
-#serverStatus.connected { background-color: #4CAF50; }
-#serverStatus.disconnected { background-color: #F44336; }
-#serverStatus.reconnecting { background-color: #FFEB3B; }
-#serverStatus.cleared { background-color: #2196F3; }
-#serverStatus.paused { background-color: #FF9800; }

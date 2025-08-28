@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
@@ -12,18 +12,17 @@
         <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     </head>
     <body>
-        <!-- NEW: Wrapper div to control click-through behavior -->
         <div id="app-wrapper">
             <div class="main-container">
                 <div class="controls">
                     <div class="title-container">
-                        <div id="serverStatus"></div>
+                        <div id="serverStatus" class="status-indicator"></div>
                         <span class="app-title">BPSR-PSO</span>
                     </div>
-                    <div style="display: flex; gap: 5px">
-                        <button id="clearButton" onclick="clearData()">Clear</button>
-                        <button id="pauseButton" onclick="togglePause()">Pause</button>
-                        <button id="closeButton" onclick="closeClient()">X</button>
+                    <div class="button-group">
+                        <button id="clearButton" onclick="clearData()" title="Clear Data">Clear</button>
+                        <button id="pauseButton" onclick="togglePause()" title="Pause/Resume">Pause</button>
+                        <button id="closeButton" onclick="closeClient()" title="Close Client">X</button>
                     </div>
                 </div>
                 <div id="columnsContainer" class="columns-container"></div>
