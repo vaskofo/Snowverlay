@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>BPSR-PSO</title>
+        <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="style.css">
+        <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    </head>
+    <body>
+        <!-- NEW: Wrapper div to control click-through behavior -->
+        <div id="app-wrapper">
+            <div class="main-container">
+                <div class="controls">
+                    <div class="title-container">
+                        <div id="serverStatus"></div>
+                        <span class="app-title">BPSR-PSO</span>
+                    </div>
+                    <div style="display: flex; gap: 5px;">
+                        <button id="clearButton" onclick="clearData()">Clear</button>
+                        <button id="pauseButton" onclick="togglePause()">Pause</button>
+                        <button id="closeButton" onclick="closeClient()">X</button>
+                    </div>
+                </div>
+                <div id="columnsContainer" class="columns-container"></div>
+            </div>
+        </div>
+        <script src="script.js"></script>
+    </body>
+</html>

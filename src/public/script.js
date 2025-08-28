@@ -1,19 +1,3 @@
-const classTranslationMap = {
-    "巨刃守护者": "Heavy Guardian",
-    "未知岩盾": "Heavy Guardian",
-    "神盾骑士": "Shield Knight",
-    "未知光盾": "Shield Knight",
-    "雷影剑士": "Stormblade",
-    "未知居合": "Stormblade (Laido Spec)",
-    "冰霜法师": "Frost Mage",
-    "导师": "Frost Mage",
-    "射手": "Marksman",
-    "未知狼弓": "Marksman",
-    "灵魂乐": "Soul Musician",
-    "森语者": "Verdant Oracle",
-    "青岚骑士": "Wind Knight"
-};
-
 // Define an array of visually distinct hues for rotation
 const colorHues = [
     210, // Blue
@@ -29,18 +13,6 @@ const colorHues = [
 
 let colorIndex = 0;
 
-function translateProfession(profession) {
-    // Find a key in the map that is contained within the profession string
-    for (const chineseName in classTranslationMap) {
-        if (profession.includes(chineseName)) {
-            return classTranslationMap[chineseName];
-        }
-    }
-    // If no translation is found, return the original string
-    return profession;
-}
-
-// NEW: Function to get the next color from the rotating list
 function getNextColorShades() {
     const h = colorHues[colorIndex];
     colorIndex = (colorIndex + 1) % colorHues.length; // Move to the next index, looping back if necessary
@@ -64,9 +36,11 @@ let isPaused = false;
 let socket = null;
 let isWebSocketConnected = false;
 let lastWebSocketMessage = Date.now();
-let isMinimized = false;
 const WEBSOCKET_RECONNECT_INTERVAL = 5000;
-const MAX_ROWS_PER_COLUMN = 5; // The new row limit
+const MAX_ROWS_PER_COLUMN = 5;
+
+// This will be http://localhost:xxxx where xxxx is the correct dynamic port
+const SERVER_URL = "localhost:8990";
 
 function formatNumber(num) {
     if (isNaN(num)) return 'NaN';
@@ -97,7 +71,6 @@ function renderDataList(users) {
         const hpsPercent = totalHPS > 0 ? (user.total_hps / totalHPS) * 100 : 0;
 
         if (!userColors[user.id]) {
-            // Use the new rotational color function
             userColors[user.id] = getNextColorShades();
         }
         const colors = userColors[user.id];
@@ -107,12 +80,17 @@ function renderDataList(users) {
         item.style.setProperty('--color-dps', colors.dps);
         item.style.setProperty('--color-hps', colors.hps);
         item.style.setProperty('--color-dps-shadow', colors.dps);
+        item.style.setProperty('--dps-percent', `${dpsPercent}%`);
+        item.style.setProperty('--hps-percent', `${hpsPercent}%`);
 
+        const isUnknown = user.name === "..." || user.name === "未知";
+        const professionDisplay = isUnknown || !user.profession ? '' : `<span class="class">${user.profession}</span>`;
+        
         item.innerHTML = `
             <div class="player-header">
                 <div class="player-info">
-                    <span class="name">${user.name}</span>
-                    <span class="class">${user.profession}</span>
+                    <span class="name">${user.fightPoint ? `${user.name} (${user.fightPoint})` : user.name}</span>
+                    ${professionDisplay}
                 </div>
             </div>
             <div class="bars-container">
@@ -130,6 +108,7 @@ function renderDataList(users) {
                 </div>
             </div>
         `;
+
         currentList.appendChild(item);
     });
 }
@@ -139,28 +118,60 @@ function updateAll() {
     renderDataList(usersArray);
 }
 
+// --- THIS FUNCTION HAS BEEN CORRECTED ---
 function processDataUpdate(data) {
-    if (isPaused || isMinimized) return;
+    if (isPaused) return;
     if (!data.user) {
         console.warn('Received data without a "user" object:', data);
         return;
     }
+
     for (const userId in data.user) {
         const newUser = data.user[userId];
-        const translatedProfession = translateProfession(newUser.profession);
-        allUsers[userId] = {
-            ...allUsers[userId],
+        const existingUser = allUsers[userId] || {};
+
+        // Merge all numeric and structural data from the new packet first
+        const updatedUser = {
+            ...existingUser,
             ...newUser,
             id: userId,
-            profession: translatedProfession // Use the translated name
         };
+
+        // A new name is only accepted if it's a non-empty string and not the Chinese "Unknown" placeholder.
+        const hasNewValidName = newUser.name && typeof newUser.name === 'string' && newUser.name !== "未知";
+        if (hasNewValidName) {
+            updatedUser.name = newUser.name;
+        } else if (!existingUser.name || existingUser.name === '...') {
+            // Only set to placeholder if no name has ever been seen for this user
+            updatedUser.name = '...';
+        }
+
+        // A new profession is only accepted if it's a non-empty string.
+        const hasNewProfession = newUser.profession && typeof newUser.profession === 'string';
+        if (hasNewProfession) {
+            updatedUser.profession = newUser.profession;
+        } else if (!existingUser.profession) {
+            updatedUser.profession = '';
+        }
+
+        // A new fightPoint is only accepted if it's a valid number.
+        const hasNewFightPoint = newUser.fightPoint !== undefined && typeof newUser.fightPoint === 'number';
+        if (hasNewFightPoint) {
+            updatedUser.fightPoint = newUser.fightPoint;
+        } else if (existingUser.fightPoint === undefined) {
+            updatedUser.fightPoint = 0;
+        }
+
+        allUsers[userId] = updatedUser;
     }
+    
     updateAll();
 }
 
+
 async function clearData() {
     try {
-        const response = await fetch('http://localhost:8990/api/clear');
+        const response = await fetch(`http://${SERVER_URL}/api/clear`);
         const result = await response.json();
 
         if (result.code === 0) {
@@ -183,21 +194,8 @@ function togglePause() {
     showServerStatus(isPaused ? 'paused' : 'active');
 }
 
-// NEW: Function to toggle the minimized state
-function toggleMinimize() {
-    const mainContainer = document.querySelector('.main-container');
-    const minimizeButton = document.getElementById('minimizeButton');
-
-    isMinimized = !isMinimized;
-    if (isMinimized) {
-        mainContainer.classList.add('minimized');
-        minimizeButton.innerText = 'Open';
-        showServerStatus('minimized');
-    } else {
-        mainContainer.classList.remove('minimized');
-        minimizeButton.innerText = '_';
-        showServerStatus('active');
-    }
+function closeClient() {
+    window.electronAPI.closeClient();
 }
 
 function showServerStatus(status) {
@@ -206,8 +204,7 @@ function showServerStatus(status) {
 }
 
 function connectWebSocket() {
-    const socketUrl = 'http://localhost:8990';
-    socket = io(socketUrl);
+    socket = io(SERVER_URL);
 
     socket.on('connect', () => {
         isWebSocketConnected = true;
@@ -219,15 +216,15 @@ function connectWebSocket() {
         isWebSocketConnected = false;
         showServerStatus('disconnected');
     });
-
+    
     socket.on('data', (data) => {
-        console.log(data);
         processDataUpdate(data);
         lastWebSocketMessage = Date.now();
     });
 
     socket.on('connect_error', (error) => {
         showServerStatus('disconnected');
+        console.error('WebSocket connection error:', error);
     });
 }
 
@@ -250,9 +247,12 @@ function initialize() {
     setInterval(checkConnection, WEBSOCKET_RECONNECT_INTERVAL);
 }
 
-document.addEventListener('DOMContentLoaded', initialize);
 
-// Expose functions to the global scope for onclick attributes
+let forward = false;
+
+document.addEventListener('DOMContentLoaded', () => {
+    initialize();
+})
+
 window.clearData = clearData;
 window.togglePause = togglePause;
-window.toggleMinimize = toggleMinimize; // NEW: Expose the minimize function

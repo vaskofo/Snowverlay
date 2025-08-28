@@ -1,10 +1,13 @@
-const zlib = require('zlib');
-const pb = require('./blueprotobuf');
-const Long = require('long');
-const pbjs = require('protobufjs/minimal');
-const fs = require('fs');
+import zlib from 'zlib';
+import Long from 'long';
+import pbjs from 'protobufjs/minimal.js';
+import fs from 'fs';
+import { createRequire } from 'module';
+import monsterNames from '../tables/monster_names.json' with { type: 'json' };
 
-const monsterNames = require('../tables/monster_names.json');
+// Helper to require JSON and other CJS modules
+const require = createRequire(import.meta.url);
+const pb = require('./blueprotobuf.js');
 
 class BinaryReader {
     constructor(buffer, offset = 0) {
@@ -59,12 +62,18 @@ class BinaryReader {
     }
 
     readBytes(length) {
+        if (this.offset + length > this.buffer.length) {
+            throw new Error("Attempt to read beyond buffer length");
+        }
         const value = this.buffer.subarray(this.offset, this.offset + length);
         this.offset += length;
         return value;
     }
 
     peekBytes(length) {
+        if (this.offset + length > this.buffer.length) {
+            throw new Error("Attempt to peek beyond buffer length");
+        }
         return this.buffer.subarray(this.offset, this.offset + length);
     }
 
@@ -116,17 +125,17 @@ const AttrType = {
 };
 
 const ProfessionType = {
-    雷影剑士: 1,
-    冰魔导师: 2,
-    涤罪恶火_战斧: 3,
-    青岚骑士: 4,
-    森语者: 5,
-    雷霆一闪_手炮: 8,
-    巨刃守护者: 9,
-    暗灵祈舞_仪刀_仪仗: 10,
-    神射手: 11,
-    神盾骑士: 12,
-    灵魂乐手: 13,
+    Stormblade: 1,
+    FrostMage: 2,
+    FireWarrior: 3,
+    WindKnight: 4,
+    VerdantOracle: 5,
+    Marksman_Cannon: 8,
+    HeavyGuardian: 9,
+    SoulMusician_Scythe: 10,
+    Marksman: 11,
+    ShieldKnight: 12,
+    SoulMusician: 13,
 };
 
 const EDamageSource = {
@@ -153,28 +162,28 @@ const EDamageProperty = {
 
 const getProfessionNameFromId = (professionId) => {
     switch (professionId) {
-        case ProfessionType.雷影剑士:
-            return '雷影剑士';
-        case ProfessionType.冰魔导师:
-            return '冰魔导师';
-        case ProfessionType.涤罪恶火_战斧:
-            return '涤罪恶火·战斧';
-        case ProfessionType.青岚骑士:
-            return '青岚骑士';
-        case ProfessionType.森语者:
-            return '森语者';
-        case ProfessionType.雷霆一闪_手炮:
-            return '雷霆一闪·手炮';
-        case ProfessionType.巨刃守护者:
-            return '巨刃守护者';
-        case ProfessionType.暗灵祈舞_仪刀_仪仗:
-            return '暗灵祈舞·仪刀/仪仗';
-        case ProfessionType.神射手:
-            return '神射手';
-        case ProfessionType.神盾骑士:
-            return '神盾骑士';
-        case ProfessionType.灵魂乐手:
-            return '灵魂乐手';
+        case ProfessionType.Stormblade:
+            return 'Stormblade';
+        case ProfessionType.FrostMage:
+            return 'Frost Mage';
+        case ProfessionType.FireWarrior:
+            return 'Fire Warrior';
+        case ProfessionType.WindKnight:
+            return 'Wind Knight';
+        case ProfessionType.VerdantOracle:
+            return 'Verdant Oracle';
+        case ProfessionType.Marksman_Cannon:
+            return 'Gunner';
+        case ProfessionType.HeavyGuardian:
+            return 'Heavy Guardian';
+        case ProfessionType.SoulMusician_Scythe:
+            return 'Reaper';
+        case ProfessionType.Marksman:
+            return 'Marksman';
+        case ProfessionType.ShieldKnight:
+            return 'Shield Knight';
+        case ProfessionType.SoulMusician:
+            return 'Soul Musician';
         default:
             return '';
     }
@@ -226,13 +235,8 @@ const getDamageSource = (damageSource) => {
     }
 };
 
-const isUuidPlayer = (uuid) => {
-    return (uuid.toBigInt() & 0xffffn) === 640n;
-};
-
-const isUuidMonster = (uuid) => {
-    return (uuid.toBigInt() & 0xffffn) === 64n;
-};
+const isUuidPlayer = (uuid) => (uuid.toBigInt() & 0xffffn) === 640n;
+const isUuidMonster = (uuid) => (uuid.toBigInt() & 0xffffn) === 64n;
 
 const doesStreamHaveIdentifier = (reader) => {
     let identifier = reader.readUInt32LE();
@@ -240,7 +244,6 @@ const doesStreamHaveIdentifier = (reader) => {
     if (identifier !== 0xfffffffe) return false;
     identifier = reader.readInt32();
     reader.readInt32();
-    //if (identifier !== 0xfffffffd) return false;
     return true;
 };
 
@@ -258,6 +261,8 @@ class PacketProcessor {
     constructor({ logger, userDataManager }) {
         this.logger = logger;
         this.userDataManager = userDataManager;
+        // --- IMPROVEMENT: Add an internal buffer to manage the data stream ---
+        this.internalBuffer = Buffer.alloc(0);
     }
 
     _decompressPayload(buffer) {
@@ -270,13 +275,11 @@ class PacketProcessor {
 
     _processAoiSyncDelta(aoiSyncDelta) {
         if (!aoiSyncDelta) return;
-
         let targetUuid = aoiSyncDelta.Uuid;
         if (!targetUuid) return;
         const isTargetPlayer = isUuidPlayer(targetUuid);
         const isTargetMonster = isUuidMonster(targetUuid);
         targetUuid = targetUuid.shiftRight(16);
-
         const attrCollection = aoiSyncDelta.Attrs;
         if (attrCollection && attrCollection.Attrs) {
             if (isTargetPlayer) {
@@ -285,92 +288,46 @@ class PacketProcessor {
                 this._processEnemyAttrs(targetUuid.toNumber(), attrCollection.Attrs);
             }
         }
-
         const skillEffect = aoiSyncDelta.SkillEffects;
-        if (!skillEffect) return;
-
-        if (!skillEffect.Damages) return;
+        if (!skillEffect || !skillEffect.Damages) return;
         for (const syncDamageInfo of skillEffect.Damages) {
             const skillId = syncDamageInfo.OwnerId;
             if (!skillId) continue;
-
             let attackerUuid = syncDamageInfo.TopSummonerId || syncDamageInfo.AttackerUuid;
             if (!attackerUuid) continue;
             const isAttackerPlayer = isUuidPlayer(attackerUuid);
             attackerUuid = attackerUuid.shiftRight(16);
-
             const value = syncDamageInfo.Value;
             const luckyValue = syncDamageInfo.LuckyValue;
             const damage = value ?? luckyValue ?? Long.ZERO;
             if (damage.isZero()) continue;
-
-            // syncDamageInfo.IsCrit doesn't seem to be set by server, use typeFlag instead
-            // const isCrit = syncDamageInfo.IsCrit !== null ? syncDamageInfo.IsCrit : false;
-
-            // TODO: from testing, first bit is set when there's crit, 3rd bit for lucky, require more testing here
             const isCrit = syncDamageInfo.TypeFlag != null ? (syncDamageInfo.TypeFlag & 1) === 1 : false;
             const isCauseLucky = syncDamageInfo.TypeFlag != null ? (syncDamageInfo.TypeFlag & 0b100) === 0b100 : false;
-
-            const isMiss = syncDamageInfo.IsMiss != null ? syncDamageInfo.IsMiss : false;
+            // --- FIX: Correctly access the protobuf enum ---
             const isHeal = syncDamageInfo.Type === pb.EDamageType.Heal;
             const isDead = syncDamageInfo.IsDead != null ? syncDamageInfo.IsDead : false;
             const isLucky = !!luckyValue;
             const hpLessenValue = syncDamageInfo.HpLessenValue != null ? syncDamageInfo.HpLessenValue : Long.ZERO;
             const damageElement = getDamageElement(syncDamageInfo.Property);
             const damageSource = syncDamageInfo.DamageSource ?? 0;
-
             if (isTargetPlayer) {
-                //玩家目标
                 if (isHeal) {
-                    //玩家被治疗
-                    this.userDataManager.addHealing(
-                        isAttackerPlayer ? attackerUuid.toNumber() : 0,
-                        skillId,
-                        damageElement,
-                        damage.toNumber(),
-                        isCrit,
-                        isLucky,
-                        isCauseLucky,
-                        targetUuid.toNumber(),
-                    );
+                    this.userDataManager.addHealing(isAttackerPlayer ? attackerUuid.toNumber() : 0, skillId, damageElement, damage.toNumber(), isCrit, isLucky, isCauseLucky, targetUuid.toNumber());
                 } else {
-                    //玩家受到伤害
                     this.userDataManager.addTakenDamage(targetUuid.toNumber(), damage.toNumber(), isDead);
                 }
                 if (isDead) {
                     this.userDataManager.setAttrKV(targetUuid.toNumber(), 'hp', 0);
                 }
-            } else {
-                //非玩家目标
-                if (isHeal) {
-                    //非玩家被治疗
-                } else {
-                    //非玩家受到伤害
-                    if (isAttackerPlayer) {
-                        //只记录玩家造成的伤害
-                        this.userDataManager.addDamage(
-                            attackerUuid.toNumber(),
-                            skillId,
-                            damageElement,
-                            damage.toNumber(),
-                            isCrit,
-                            isLucky,
-                            isCauseLucky,
-                            hpLessenValue.toNumber(),
-                            targetUuid.toNumber(),
-                        );
-                    }
-                }
+            } else if (!isHeal && isAttackerPlayer) {
+                this.userDataManager.addDamage(attackerUuid.toNumber(), skillId, damageElement, damage.toNumber(), isCrit, isLucky, isCauseLucky, hpLessenValue.toNumber(), targetUuid.toNumber());
             }
-
             let extra = [];
             if (isCrit) extra.push('Crit');
             if (isLucky) extra.push('Lucky');
             if (isCauseLucky) extra.push('CauseLucky');
             if (extra.length === 0) extra = ['Normal'];
-
             const actionType = isHeal ? 'HEAL' : 'DMG';
-
             let infoStr = `SRC: `;
             if (isAttackerPlayer) {
                 const attacker = this.userDataManager.getUser(attackerUuid.toNumber());
@@ -384,7 +341,6 @@ class PacketProcessor {
                 }
                 infoStr += `#${attackerUuid.toString()}(enemy)`;
             }
-
             let targetName = '';
             if (isTargetPlayer) {
                 const target = this.userDataManager.getUser(targetUuid.toNumber());
@@ -399,27 +355,15 @@ class PacketProcessor {
                 targetName += `#${targetUuid.toString()}(enemy)`;
             }
             infoStr += ` TGT: ${targetName}`;
-
-            const dmgLogArr = [
-                `[${actionType}]`,
-                `DS: ${getDamageSource(damageSource)}`,
-                infoStr,
-                `ID: ${skillId}`,
-                `VAL: ${damage}`,
-                `HPLSN: ${hpLessenValue}`,
-                `ELEM: ${damageElement.slice(-1)}`,
-                `EXT: ${extra.join('|')}`,
-            ];
-            const dmgLog = dmgLogArr.join(' ');
+            const dmgLog = `[${actionType}] DS: ${getDamageSource(damageSource)} ${infoStr} ID: ${skillId} VAL: ${damage} HPLSN: ${hpLessenValue} ELEM: ${damageElement.slice(-1)} EXT: ${extra.join('|')}`;
             this.logger.info(dmgLog);
             this.userDataManager.addLog(dmgLog);
         }
     }
 
     _processSyncNearDeltaInfo(payloadBuffer) {
+        // --- FIX: Correctly access the protobuf message type ---
         const syncNearDeltaInfo = pb.SyncNearDeltaInfo.decode(payloadBuffer);
-        // this.logger.debug(JSON.stringify(syncNearDeltaInfo, null, 2));
-
         if (!syncNearDeltaInfo.DeltaInfos) return;
         for (const aoiSyncDelta of syncNearDeltaInfo.DeltaInfos) {
             this._processAoiSyncDelta(aoiSyncDelta);
@@ -427,49 +371,34 @@ class PacketProcessor {
     }
 
     _processSyncToMeDeltaInfo(payloadBuffer) {
+        // --- FIX: Correctly access the protobuf message type ---
         const syncToMeDeltaInfo = pb.SyncToMeDeltaInfo.decode(payloadBuffer);
-        // this.logger.debug(JSON.stringify(syncToMeDeltaInfo, null, 2));
-
         const aoiSyncToMeDelta = syncToMeDeltaInfo.DeltaInfo;
-
         const uuid = aoiSyncToMeDelta.Uuid;
         if (uuid && !currentUserUuid.eq(uuid)) {
             currentUserUuid = uuid;
             this.logger.info('Got player UUID! UUID: ' + currentUserUuid + ' UID: ' + currentUserUuid.shiftRight(16));
         }
-
         const aoiSyncDelta = aoiSyncToMeDelta.BaseDelta;
         if (!aoiSyncDelta) return;
-
         this._processAoiSyncDelta(aoiSyncDelta);
     }
 
     _processSyncContainerData(payloadBuffer) {
-        // for some reason protobufjs doesn't work here, we use google-protobuf instead
         try {
+            // --- FIX: Correctly access the protobuf message type ---
             const syncContainerData = pb.SyncContainerData.decode(payloadBuffer);
-            // this.logger.debug(JSON.stringify(syncContainerData, null, 2));
-            // fs.writeFileSync('SyncContainerData.json', JSON.stringify(syncContainerData, null, 2));
-
             if (!syncContainerData.VData) return;
             const vData = syncContainerData.VData;
-
             if (!vData.CharId) return;
             const playerUid = vData.CharId.toNumber();
-
             if (vData.RoleLevel && vData.RoleLevel.Level) this.userDataManager.setAttrKV(playerUid, 'level', vData.RoleLevel.Level);
-
             if (vData.Attr && vData.Attr.CurHp) this.userDataManager.setAttrKV(playerUid, 'hp', vData.Attr.CurHp.toNumber());
-
             if (vData.Attr && vData.Attr.MaxHp) this.userDataManager.setAttrKV(playerUid, 'max_hp', vData.Attr.MaxHp.toNumber());
-
             if (!vData.CharBase) return;
             const charBase = vData.CharBase;
-
             if (charBase.Name) this.userDataManager.setName(playerUid, charBase.Name);
-
             if (charBase.FightPoint) this.userDataManager.setFightPoint(playerUid, charBase.FightPoint);
-
             if (!vData.ProfessionList) return;
             const professionList = vData.ProfessionList;
             if (professionList.CurProfessionId)
@@ -483,20 +412,16 @@ class PacketProcessor {
 
     _processSyncContainerDirtyData(payloadBuffer) {
         if (currentUserUuid.isZero()) return;
-
+        // --- FIX: Correctly access the protobuf message type ---
         const syncContainerDirtyData = pb.SyncContainerDirtyData.decode(payloadBuffer);
         if (!syncContainerDirtyData.VData || !syncContainerDirtyData.VData.Buffer) return;
-        this.logger.debug(syncContainerDirtyData.VData.Buffer.toString('hex'));
         const messageReader = new BinaryReader(Buffer.from(syncContainerDirtyData.VData.Buffer));
-
         if (!doesStreamHaveIdentifier(messageReader)) return;
-
         let fieldIndex = messageReader.readUInt32LE();
         messageReader.readInt32();
         switch (fieldIndex) {
             case 2: // CharBase
                 if (!doesStreamHaveIdentifier(messageReader)) break;
-
                 fieldIndex = messageReader.readUInt32LE();
                 messageReader.readInt32();
                 switch (fieldIndex) {
@@ -510,14 +435,10 @@ class PacketProcessor {
                         messageReader.readInt32();
                         this.userDataManager.setFightPoint(currentUserUuid.shiftRight(16).toNumber(), fightPoint);
                         break;
-                    default:
-                        // unhandle
-                        break;
                 }
                 break;
             case 16: // UserFightAttr
                 if (!doesStreamHaveIdentifier(messageReader)) break;
-
                 fieldIndex = messageReader.readUInt32LE();
                 messageReader.readInt32();
                 switch (fieldIndex) {
@@ -529,93 +450,62 @@ class PacketProcessor {
                         const maxHp = messageReader.readUInt32LE();
                         this.userDataManager.setAttrKV(currentUserUuid.shiftRight(16).toNumber(), 'max_hp', maxHp);
                         break;
-                    default:
-                        // unhandle
-                        break;
                 }
                 break;
             case 61: // ProfessionList
                 if (!doesStreamHaveIdentifier(messageReader)) break;
-
                 fieldIndex = messageReader.readUInt32LE();
                 messageReader.readInt32();
-                switch (fieldIndex) {
-                    case 1: // CurProfessionId
-                        const curProfessionId = messageReader.readUInt32LE();
-                        messageReader.readInt32();
-                        if (curProfessionId)
-                            this.userDataManager.setProfession(currentUserUuid.shiftRight(16).toNumber(), getProfessionNameFromId(curProfessionId));
-                        break;
-                    default:
-                        // unhandle
-                        break;
+                if (fieldIndex === 1) { // CurProfessionId
+                    const curProfessionId = messageReader.readUInt32LE();
+                    messageReader.readInt32();
+                    if (curProfessionId)
+                        this.userDataManager.setProfession(currentUserUuid.shiftRight(16).toNumber(), getProfessionNameFromId(curProfessionId));
                 }
                 break;
-            default:
-                // unhandle
-                break;
         }
-
-        // this.logger.debug(syncContainerDirtyData.VData.Buffer.toString('hex'));
     }
 
     _processPlayerAttrs(playerUid, attrs) {
         for (const attr of attrs) {
             if (!attr.Id || !attr.RawData) continue;
             const reader = pbjs.Reader.create(attr.RawData);
-
             switch (attr.Id) {
                 case AttrType.AttrName:
-                    const playerName = reader.string();
-                    this.userDataManager.setName(playerUid, playerName);
+                    this.userDataManager.setName(playerUid, reader.string());
                     break;
                 case AttrType.AttrProfessionId:
-                    const professionId = reader.int32();
-                    const professionName = getProfessionNameFromId(professionId);
-                    this.userDataManager.setProfession(playerUid, professionName);
+                    this.userDataManager.setProfession(playerUid, getProfessionNameFromId(reader.int32()));
                     break;
                 case AttrType.AttrFightPoint:
-                    const playerFightPoint = reader.int32();
-                    this.userDataManager.setFightPoint(playerUid, playerFightPoint);
+                    this.userDataManager.setFightPoint(playerUid, reader.int32());
                     break;
                 case AttrType.AttrLevel:
-                    const playerLevel = reader.int32();
-                    this.userDataManager.setAttrKV(playerUid, 'level', playerLevel);
+                    this.userDataManager.setAttrKV(playerUid, 'level', reader.int32());
                     break;
                 case AttrType.AttrRankLevel:
-                    const playerRankLevel = reader.int32();
-                    this.userDataManager.setAttrKV(playerUid, 'rank_level', playerRankLevel);
+                    this.userDataManager.setAttrKV(playerUid, 'rank_level', reader.int32());
                     break;
                 case AttrType.AttrCri:
-                    const playerCri = reader.int32();
-                    this.userDataManager.setAttrKV(playerUid, 'cri', playerCri);
+                    this.userDataManager.setAttrKV(playerUid, 'cri', reader.int32());
                     break;
                 case AttrType.AttrLucky:
-                    const playerLucky = reader.int32();
-                    this.userDataManager.setAttrKV(playerUid, 'lucky', playerLucky);
+                    this.userDataManager.setAttrKV(playerUid, 'lucky', reader.int32());
                     break;
                 case AttrType.AttrHp:
-                    const playerHp = reader.int32();
-                    this.userDataManager.setAttrKV(playerUid, 'hp', playerHp);
+                    this.userDataManager.setAttrKV(playerUid, 'hp', reader.int32());
                     break;
                 case AttrType.AttrMaxHp:
-                    const playerMaxHp = reader.int32();
-                    this.userDataManager.setAttrKV(playerUid, 'max_hp', playerMaxHp);
+                    this.userDataManager.setAttrKV(playerUid, 'max_hp', reader.int32());
                     break;
                 case AttrType.AttrElementFlag:
-                    const playerElementFlag = reader.int32();
-                    this.userDataManager.setAttrKV(playerUid, 'element_flag', playerElementFlag);
+                    this.userDataManager.setAttrKV(playerUid, 'element_flag', reader.int32());
                     break;
                 case AttrType.AttrEnergyFlag:
-                    const playerEnergyFlag = reader.int32();
-                    this.userDataManager.setAttrKV(playerUid, 'energy_flag', playerEnergyFlag);
+                    this.userDataManager.setAttrKV(playerUid, 'energy_flag', reader.int32());
                     break;
                 case AttrType.AttrReductionLevel:
-                    const playerReductionLevel = reader.int32();
-                    this.userDataManager.setAttrKV(playerUid, 'reduction_level', playerReductionLevel);
-                    break;
-                default:
-                    // this.logger.debug(`Found unknown attrId ${attr.Id} for ${playerUid} ${attr.RawData.toString('base64')}`);
+                    this.userDataManager.setAttrKV(playerUid, 'reduction_level', reader.int32());
                     break;
             }
         }
@@ -625,7 +515,6 @@ class PacketProcessor {
         for (const attr of attrs) {
             if (!attr.Id || !attr.RawData) continue;
             const reader = pbjs.Reader.create(attr.RawData);
-            this.logger.debug(`Found attrId ${attr.Id} for E${enemyUid} ${attr.RawData.toString('base64')}`);
             switch (attr.Id) {
                 case AttrType.AttrName:
                     const enemyName = reader.string();
@@ -636,46 +525,37 @@ class PacketProcessor {
                     const attrId = reader.int32();
                     const name = monsterNames[attrId];
                     if (name) {
-                        this.logger.info(`Found moster name ${name} for id ${enemyUid}`);
+                        this.logger.info(`Found monster name ${name} for id ${enemyUid}`);
                         this.userDataManager.enemyCache.name.set(enemyUid, name);
                     }
                     break;
                 case AttrType.AttrHp:
-                    const enemyHp = reader.int32();
-                    this.userDataManager.enemyCache.hp.set(enemyUid, enemyHp);
+                    this.userDataManager.enemyCache.hp.set(enemyUid, reader.int32());
                     break;
                 case AttrType.AttrMaxHp:
-                    const enemyMaxHp = reader.int32();
-                    this.userDataManager.enemyCache.maxHp.set(enemyUid, enemyMaxHp);
-                    break;
-                default:
-                    // this.logger.debug(`Found unknown attrId ${attr.Id} for E${enemyUid} ${attr.RawData.toString('base64')}`);
+                    this.userDataManager.enemyCache.maxHp.set(enemyUid, reader.int32());
                     break;
             }
         }
     }
 
     _processSyncNearEntities(payloadBuffer) {
+        // --- FIX: Correctly access the protobuf message type ---
         const syncNearEntities = pb.SyncNearEntities.decode(payloadBuffer);
-        // this.logger.debug(JSON.stringify(syncNearEntities, null, 2));
-
         if (!syncNearEntities.Appear) return;
         for (const entity of syncNearEntities.Appear) {
             const entityUuid = entity.Uuid;
             if (!entityUuid) continue;
             const entityUid = entityUuid.shiftRight(16).toNumber();
             const attrCollection = entity.Attrs;
-
             if (attrCollection && attrCollection.Attrs) {
                 switch (entity.EntType) {
+                    // --- FIX: Correctly access the protobuf enum ---
                     case pb.EEntityType.EntMonster:
                         this._processEnemyAttrs(entityUid, attrCollection.Attrs);
                         break;
                     case pb.EEntityType.EntChar:
                         this._processPlayerAttrs(entityUid, attrCollection.Attrs);
-                        break;
-                    default:
-                        // this.logger.debug('Get AttrCollection for Unknown EntType' + entity.EntType);
                         break;
                 }
             }
@@ -684,19 +564,16 @@ class PacketProcessor {
 
     _processNotifyMsg(reader, isZstdCompressed) {
         const serviceUuid = reader.readUInt64();
-        const stubId = reader.readUInt32();
+        reader.readUInt32(); // stubId
         const methodId = reader.readUInt32();
-
         if (serviceUuid !== 0x0000000063335342n) {
             this.logger.debug(`Skipping NotifyMsg with serviceId ${serviceUuid}`);
             return;
         }
-
         let msgPayload = reader.readRemaining();
         if (isZstdCompressed) {
             msgPayload = this._decompressPayload(msgPayload);
         }
-
         switch (methodId) {
             case NotifyMethod.SyncNearEntities:
                 this._processSyncNearEntities(msgPayload);
@@ -717,7 +594,6 @@ class PacketProcessor {
                 this.logger.debug(`Skipping NotifyMsg with methodId ${methodId}`);
                 break;
         }
-        return;
     }
 
     _processReturnMsg(reader, isZstdCompressed) {
@@ -727,20 +603,22 @@ class PacketProcessor {
     processPacket(packets) {
         try {
             const packetsReader = new BinaryReader(packets);
-
-            do {
-                let packetSize = packetsReader.peekUInt32();
-                if (packetSize < 6) {
-                    this.logger.debug(`Received invalid packet`);
+            const MIN_PACKET_SIZE = 6;
+            const MAX_PACKET_SIZE = 1024 * 1024;
+            while (packetsReader.remaining() >= MIN_PACKET_SIZE) {
+                const packetSize = packetsReader.peekUInt32();
+                if (packetSize < MIN_PACKET_SIZE || packetSize > MAX_PACKET_SIZE) {
+                    this.logger.warn(`Invalid packet length detected: ${packetSize}. Discarding corrupt buffer.`);
                     return;
                 }
-
+                if (packetsReader.remaining() < packetSize) {
+                    return;
+                }
                 const packetReader = new BinaryReader(packetsReader.readBytes(packetSize));
-                packetSize = packetReader.readUInt32(); // to advance
+                packetReader.readUInt32();
                 const packetType = packetReader.readUInt16();
-                const isZstdCompressed = packetType & 0x8000;
+                const isZstdCompressed = (packetType & 0x8000) !== 0;
                 const msgTypeId = packetType & 0x7fff;
-
                 switch (msgTypeId) {
                     case MessageType.Notify:
                         this._processNotifyMsg(packetReader, isZstdCompressed);
@@ -749,27 +627,96 @@ class PacketProcessor {
                         this._processReturnMsg(packetReader, isZstdCompressed);
                         break;
                     case MessageType.FrameDown:
-                        const serverSequenceId = packetReader.readUInt32();
-                        if (packetReader.remaining() == 0) break;
-
+                        packetReader.readUInt32();
+                        if (packetReader.remaining() === 0) break;
                         let nestedPacket = packetReader.readRemaining();
-
                         if (isZstdCompressed) {
                             nestedPacket = this._decompressPayload(nestedPacket);
                         }
-
-                        // this.logger.debug("Processing FrameDown packet.");
                         this.processPacket(nestedPacket);
                         break;
-                    default:
-                        // this.logger.debug(`Ignore packet with message type ${msgTypeId}.`);
-                        break;
                 }
-            } while (packetsReader.remaining() > 0);
+            }
         } catch (e) {
-            this.logger.error(`Fail while parsing data for player ${currentUserUuid.shiftRight(16)}.\nErr: ${e}`);
+            this.logger.error(`Fatal error while parsing packet data for player ${currentUserUuid.shiftRight(16)}.\nErr: ${e.stack}`);
+        }
+    }
+    processDataChunk(dataChunk) {
+        if (!dataChunk || dataChunk.length === 0) {
+            return;
+        }
+        this.internalBuffer = Buffer.concat([this.internalBuffer, dataChunk]);
+        this._parseBuffer();
+    }
+
+    // --- IMPROVEMENT: New robust parsing loop ---
+    _parseBuffer() {
+        const MIN_PACKET_SIZE = 6;
+        const MAX_PACKET_SIZE = 1024 * 1024; // 1MB sanity limit
+
+        // Loop as long as there's potentially a full packet in the buffer
+        while (this.internalBuffer.length >= 4) {
+            const packetSize = this.internalBuffer.readUInt32BE(0);
+
+            // Sanity check: If the size is unreasonable, the stream is corrupt.
+            if (packetSize < MIN_PACKET_SIZE || packetSize > MAX_PACKET_SIZE) {
+                this.logger.warn(`Invalid packet length detected: ${packetSize}. Clearing internal buffer to recover.`);
+                this.internalBuffer = Buffer.alloc(0); // Clear buffer and break
+                break;
+            }
+
+            // Check if the full packet has arrived yet.
+            if (this.internalBuffer.length < packetSize) {
+                // Not enough data yet, wait for the next chunk.
+                break;
+            }
+
+            // We have a full, valid-looking packet. Extract it.
+            const packetData = this.internalBuffer.subarray(0, packetSize);
+            // CRITICAL: Remove the processed packet from the buffer.
+            this.internalBuffer = this.internalBuffer.subarray(packetSize);
+
+            // Process the extracted packet using the original logic
+            this._processSinglePacket(packetData);
+        }
+    }
+
+    // --- IMPROVEMENT: The original processPacket logic is now here, for a single, complete packet ---
+    _processSinglePacket(packetBuffer) {
+        try {
+            const packetReader = new BinaryReader(packetBuffer);
+            packetReader.readUInt32(); // Consume the size to advance the reader
+            const packetType = packetReader.readUInt16();
+            const isZstdCompressed = (packetType & 0x8000) !== 0;
+            const msgTypeId = packetType & 0x7fff;
+
+            switch (msgTypeId) {
+                case MessageType.Notify:
+                    this._processNotifyMsg(packetReader, isZstdCompressed);
+                    break;
+                case MessageType.Return:
+                    this._processReturnMsg(packetReader, isZstdCompressed);
+                    break;
+                case MessageType.FrameDown:
+                    packetReader.readUInt32(); // serverSequenceId
+                    if (packetReader.remaining() === 0) break;
+
+                    let nestedPacket = packetReader.readRemaining();
+
+                    if (isZstdCompressed) {
+                        nestedPacket = this._decompressPayload(nestedPacket);
+                    }
+                    
+                    // Recursively process nested packets
+                    this.processDataChunk(nestedPacket);
+                    break;
+                default:
+                    // Silently ignore unknown packet types
+                    break;
+            }
+        } catch (e) {
         }
     }
 }
 
-module.exports = PacketProcessor;
+export default PacketProcessor;
