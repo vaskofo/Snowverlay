@@ -24,10 +24,12 @@ function getNextColorShades() {
     return { dps: dpsColor, hps: hpsColor };
 }
 
-// Reference to the new columns container
 const columnsContainer = document.getElementById('columnsContainer');
+const settingsContainer = document.getElementById('settingsContainer');
 const pauseButton = document.getElementById('pauseButton');
 const serverStatus = document.getElementById('serverStatus');
+const opacitySlider = document.getElementById('opacitySlider');
+
 let allUsers = {};
 let userColors = {};
 let isPaused = false;
@@ -228,11 +230,32 @@ function initialize() {
     setInterval(checkConnection, WEBSOCKET_RECONNECT_INTERVAL);
 }
 
-let forward = false;
+function toggleSettings() {
+    const isSettingsVisible = !settingsContainer.classList.contains('hidden');
+    
+    if (isSettingsVisible) {
+        settingsContainer.classList.add('hidden');
+        columnsContainer.classList.remove('hidden');
+    } else {
+        settingsContainer.classList.remove('hidden');
+        columnsContainer.classList.add('hidden');
+    }
+}
+
+function setBackgroundOpacity(value) {
+    document.documentElement.style.setProperty('--main-bg-opacity', value);
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     initialize();
+
+    setBackgroundOpacity(opacitySlider.value);
+    
+    opacitySlider.addEventListener('input', (event) => {
+        setBackgroundOpacity(event.target.value);
+    });
 });
 
 window.clearData = clearData;
 window.togglePause = togglePause;
+window.toggleSettings = toggleSettings;
