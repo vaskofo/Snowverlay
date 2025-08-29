@@ -1,12 +1,13 @@
 import { UserData } from '../models/UserData.js';
 import { Lock } from '../models/Lock.js';
 import { config } from '../config.js';
+import socket from './Socket.js';
+import logger from './Logger.js'
 import fsPromises from 'fs/promises';
 import path from 'path';
 
-export class UserDataManager {
+class UserDataManager {
     constructor(logger) {
-        this.logger = logger;
         this.users = new Map();
         this.userCache = new Map();
         this.cacheFilePath = './users.json';
@@ -35,9 +36,29 @@ export class UserDataManager {
             this.lastAutoSaveTime = Date.now();
             this.saveAllUserData();
         }, 10 * 1000);
+
+        // New: Interval to clean up inactive users every 30 seconds
+        setInterval(() => {
+            this.cleanUpInactiveUsers();
+        }, 30 * 1000);
     }
 
-    async initialize() {
+    // New: Method to remove users who have not been updated in 60 seconds
+    cleanUpInactiveUsers() {
+        const inactiveThreshold = 60 * 1000; // 1 minute
+        const currentTime = Date.now();
+        
+        for (const [uid, user] of this.users.entries()) {
+            if (currentTime - user.lastUpdateTime > inactiveThreshold) {
+                socket.emit('user_deleted', { uid });
+
+                this.users.delete(uid);
+                logger.info(`Removed inactive user with uid ${uid}`);
+            }
+        }
+    }
+
+    async init() {
         await this.loadUserCache();
     }
 
@@ -47,10 +68,10 @@ export class UserDataManager {
             const data = await fsPromises.readFile(this.cacheFilePath, 'utf8');
             const cacheData = JSON.parse(data);
             this.userCache = new Map(Object.entries(cacheData));
-            this.logger.info(`Loaded ${this.userCache.size} user cache entries`);
+            logger.info(`Loaded ${this.userCache.size} user cache entries`);
         } catch (error) {
             if (error.code !== 'ENOENT') {
-                this.logger.error('Failed to load user cache:', error);
+                logger.error('Failed to load user cache:', error);
             }
         }
     }
@@ -60,17 +81,15 @@ export class UserDataManager {
             const cacheData = Object.fromEntries(this.userCache);
             await fsPromises.writeFile(this.cacheFilePath, JSON.stringify(cacheData, null, 2), 'utf8');
         } catch (error) {
-            this.logger.error('Failed to save user cache:', error);
+            logger.error('Failed to save user cache:', error);
         }
     }
 
     saveUserCacheThrottled() {
         this.pendingSave = true;
-
         if (this.saveThrottleTimer) {
             clearTimeout(this.saveThrottleTimer);
         }
-
         this.saveThrottleTimer = setTimeout(async () => {
             if (this.pendingSave) {
                 await this.saveUserCache();
@@ -95,7 +114,6 @@ export class UserDataManager {
     getUser(uid) {
         if (!this.users.has(uid)) {
             const user = new UserData(uid);
-
             const cachedData = this.userCache.get(String(uid));
             if (cachedData) {
                 if (cachedData.name) {
@@ -114,7 +132,6 @@ export class UserDataManager {
             if (this.hpCache.has(uid)) {
                 user.setAttrKV('hp', this.hpCache.get(uid));
             }
-
             this.users.set(uid, user);
         }
         return this.users.get(uid);
@@ -166,7 +183,7 @@ export class UserDataManager {
             }
             await fsPromises.appendFile(logFile, logEntry, 'utf8');
         } catch (error) {
-            this.logger.error('Failed to save log:', error);
+            logger.error('Failed to save log:', error);
         }
         this.logLock.release();
     }
@@ -175,8 +192,7 @@ export class UserDataManager {
         const user = this.getUser(uid);
         if (user.profession !== profession) {
             user.setProfession(profession);
-            this.logger.info(`Found profession ${profession} for uid ${uid}`);
-
+            logger.info(`Found profession ${profession} for uid ${uid}`);
             const uidStr = String(uid);
             if (!this.userCache.has(uidStr)) {
                 this.userCache.set(uidStr, {});
@@ -190,8 +206,7 @@ export class UserDataManager {
         const user = this.getUser(uid);
         if (user.name !== name) {
             user.setName(name);
-            this.logger.info(`Found player name ${name} for uid ${uid}`);
-
+            logger.info(`Found player name ${name} for uid ${uid}`);
             const uidStr = String(uid);
             if (!this.userCache.has(uidStr)) {
                 this.userCache.set(uidStr, {});
@@ -205,8 +220,7 @@ export class UserDataManager {
         const user = this.getUser(uid);
         if (user.fightPoint != fightPoint) {
             user.setFightPoint(fightPoint);
-            this.logger.info(`Found fight point ${fightPoint} for uid ${uid}`);
-
+            logger.info(`Found fight point ${fightPoint} for uid ${uid}`);
             const uidStr = String(uid);
             if (!this.userCache.has(uidStr)) {
                 this.userCache.set(uidStr, {});
@@ -219,7 +233,6 @@ export class UserDataManager {
     setAttrKV(uid, key, value) {
         const user = this.getUser(uid);
         user.attr[key] = value;
-
         if (key === 'max_hp') {
             const uidStr = String(uid);
             if (!this.userCache.has(uidStr)) {
@@ -242,7 +255,6 @@ export class UserDataManager {
     getUserSkillData(uid) {
         const user = this.users.get(uid);
         if (!user) return null;
-
         return {
             uid: user.uid,
             name: user.name,
@@ -322,7 +334,6 @@ export class UserDataManager {
             const userDatas = new Map();
             for (const [uid, user] of users.entries()) {
                 allUsersData[uid] = user.getSummary();
-
                 const userData = {
                     uid: user.uid,
                     name: user.name,
@@ -341,17 +352,14 @@ export class UserDataManager {
 
             const allUserDataPath = path.join(logDir, 'allUserData.json');
             await fsPromises.writeFile(allUserDataPath, JSON.stringify(allUsersData, null, 2), 'utf8');
-
             for (const [uid, userData] of userDatas.entries()) {
                 const userDataPath = path.join(usersDir, `${uid}.json`);
                 await fsPromises.writeFile(userDataPath, JSON.stringify(userData, null, 2), 'utf8');
             }
-
             await fsPromises.writeFile(path.join(logDir, 'summary.json'), JSON.stringify(summary, null, 2), 'utf8');
-
-            this.logger.debug(`Saved data for ${summary.userCount} users to ${logDir}`);
+            logger.debug(`Saved data for ${summary.userCount} users to ${logDir}`);
         } catch (error) {
-            this.logger.error('Failed to save all user data:', error);
+            logger.error('Failed to save all user data:', error);
             throw error;
         }
     }
@@ -361,7 +369,7 @@ export class UserDataManager {
         const currentTime = Date.now();
         if (this.lastLogTime && currentTime - this.lastLogTime > 15000) {
             this.clearAll();
-            this.logger.info('Timeout reached, statistics cleared!');
+            logger.info('Timeout reached, statistics cleared!');
         }
     }
 
@@ -369,3 +377,6 @@ export class UserDataManager {
         return config.GLOBAL_SETTINGS;
     }
 }
+
+const userDataManager = new UserDataManager();
+export default userDataManager;

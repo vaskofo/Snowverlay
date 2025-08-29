@@ -23,6 +23,7 @@ html, body {
     pointer-events: none;
     padding: 0px;
     overflow: hidden;
+    border-radius: 12px;
 }
 
 .main-container {

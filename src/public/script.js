@@ -103,6 +103,7 @@ function renderDataList(users) {
         columnsContainer.appendChild(item);
     });
 }
+
 function updateAll() {
     const usersArray = Object.values(allUsers).filter((user) => user.total_dps > 0 || user.total_hps > 0);
     renderDataList(usersArray);
@@ -154,6 +155,9 @@ function processDataUpdate(data) {
 
 async function clearData() {
     try {
+        const currentStatus = getServerStatus();
+        showServerStatus('cleared');
+
         const response = await fetch(`http://${SERVER_URL}/api/clear`);
         const result = await response.json();
 
@@ -166,6 +170,8 @@ async function clearData() {
         } else {
             console.error('Failed to clear data on server:', result.msg);
         }
+
+        setTimeout(() => showServerStatus(currentStatus), 1000);
     } catch (error) {
         console.error('Error sending clear request to server:', error);
     }
@@ -174,7 +180,7 @@ async function clearData() {
 function togglePause() {
     isPaused = !isPaused;
     pauseButton.innerText = isPaused ? 'Resume' : 'Pause';
-    showServerStatus(isPaused ? 'paused' : 'active');
+    showServerStatus(isPaused ? 'paused' : 'connected');
 }
 
 function closeClient() {
@@ -184,6 +190,11 @@ function closeClient() {
 function showServerStatus(status) {
     const statusElement = document.getElementById('serverStatus');
     statusElement.className = status;
+}
+
+function getServerStatus() {
+    const statusElement = document.getElementById('serverStatus');
+    return statusElement.className;
 }
 
 function connectWebSocket() {
@@ -205,6 +216,12 @@ function connectWebSocket() {
         lastWebSocketMessage = Date.now();
     });
 
+    socket.on('user_deleted', (data) => {
+        console.log(`User ${data.uid} was removed due to inactivity.`);
+        delete allUsers[data.uid]; 
+        updateAll();
+    });
+    
     socket.on('connect_error', (error) => {
         showServerStatus('disconnected');
         console.error('WebSocket connection error:', error);
@@ -259,3 +276,4 @@ document.addEventListener('DOMContentLoaded', () => {
 window.clearData = clearData;
 window.togglePause = togglePause;
 window.toggleSettings = toggleSettings;
+window.closeClient = closeClient;

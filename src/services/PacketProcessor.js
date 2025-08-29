@@ -2,9 +2,11 @@ import zlib from 'zlib';
 import Long from 'long';
 import pbjs from 'protobufjs/minimal.js';
 import fs from 'fs';
+import logger from './Logger.js';
 import { createRequire } from 'module';
 import monsterNames from '../tables/monster_names.json' with { type: 'json' };
 import { BinaryReader } from '../models/BinaryReader.js';
+import userDataManager from '../services/userDataManager.js';
 
 const require = createRequire(import.meta.url);
 const pb = require('../algo/blueprotobuf.js');
@@ -198,15 +200,13 @@ const streamReadString = (reader) => {
 let currentUserUuid = Long.ZERO;
 
 export class PacketProcessor {
-    constructor({ logger, userDataManager }) {
-        this.logger = logger;
-        this.userDataManager = userDataManager;
+    constructor() {
         this.internalBuffer = Buffer.alloc(0);
     }
 
     _decompressPayload(buffer) {
         if (!zlib.zstdDecompressSync) {
-            this.logger.warn('zstdDecompressSync is not available! Please check your Node.js version!');
+            logger.warn('zstdDecompressSync is not available! Please check your Node.js version!');
             return;
         }
         return zlib.zstdDecompressSync(buffer);
@@ -271,7 +271,7 @@ export class PacketProcessor {
             
             if (isTargetPlayer) {
                 if (isHeal) {
-                    this.userDataManager.addHealing(
+                    userDataManager.addHealing(
                         isAttackerPlayer ? attackerUuid.toNumber() : 0,
                         skillId,
                         damageElement,
@@ -282,14 +282,14 @@ export class PacketProcessor {
                         targetUuid.toNumber()
                     );
                 } else {
-                    this.userDataManager.addTakenDamage(targetUuid.toNumber(), damage.toNumber(), isDead);
+                    userDataManager.addTakenDamage(targetUuid.toNumber(), damage.toNumber(), isDead);
                 }
                 if (isDead) {
-                    this.userDataManager.setAttrKV(targetUuid.toNumber(), 'hp', 0);
+                    userDataManager.setAttrKV(targetUuid.toNumber(), 'hp', 0);
                 }
             } else {
                 if (!isHeal && isAttackerPlayer) {
-                    this.userDataManager.addDamage(
+                    userDataManager.addDamage(
                         attackerUuid.toNumber(),
                         skillId,
                         damageElement,
@@ -302,7 +302,7 @@ export class PacketProcessor {
                     );
                 }
                 if (isDead) {
-                    this.userDataManager.deleteEnemyData(targetUuid.toNumber())
+                    userDataManager.deleteEnemyData(targetUuid.toNumber())
                 }
             } 
             
@@ -324,36 +324,36 @@ export class PacketProcessor {
             let infoStr = `SRC: `;
             
             if (isAttackerPlayer) {
-                const attacker = this.userDataManager.getUser(attackerUuid.toNumber());
+                const attacker = userDataManager.getUser(attackerUuid.toNumber());
                 if (attacker.name) {
                     infoStr += attacker.name;
                 }
                 infoStr += `#${attackerUuid.toString()}(player)`;
             } else {
-                if (this.userDataManager.enemyCache.name.has(attackerUuid.toNumber())) {
-                    infoStr += this.userDataManager.enemyCache.name.get(attackerUuid.toNumber());
+                if (userDataManager.enemyCache.name.has(attackerUuid.toNumber())) {
+                    infoStr += userDataManager.enemyCache.name.get(attackerUuid.toNumber());
                 }
                 infoStr += `#${attackerUuid.toString()}(enemy)`;
             }
             
             let targetName = '';
             if (isTargetPlayer) {
-                const target = this.userDataManager.getUser(targetUuid.toNumber());
+                const target = userDataManager.getUser(targetUuid.toNumber());
                 if (target.name) {
                     targetName += target.name;
                 }
                 targetName += `#${targetUuid.toString()}(player)`;
             } else {
-                if (this.userDataManager.enemyCache.name.has(targetUuid.toNumber())) {
-                    targetName += this.userDataManager.enemyCache.name.get(targetUuid.toNumber());
+                if (userDataManager.enemyCache.name.has(targetUuid.toNumber())) {
+                    targetName += userDataManager.enemyCache.name.get(targetUuid.toNumber());
                 }
                 targetName += `#${targetUuid.toString()}(enemy)`;
             }
             
             infoStr += ` TGT: ${targetName}`;
             const dmgLog = `[${actionType}] DS: ${getDamageSource(damageSource)} ${infoStr} ID: ${skillId} VAL: ${damage} HPLSN: ${hpLessenValue} ELEM: ${damageElement.slice(-1)} EXT: ${extra.join('|')}`;
-            //this.logger.info(dmgLog);
-            this.userDataManager.addLog(dmgLog);
+            //logger.info(dmgLog);
+            userDataManager.addLog(dmgLog);
         }
     }
 
@@ -373,7 +373,7 @@ export class PacketProcessor {
         const uuid = aoiSyncToMeDelta.Uuid;
         if (uuid && !currentUserUuid.eq(uuid)) {
             currentUserUuid = uuid;
-            this.logger.info('Got player UUID! UUID: ' + currentUserUuid + ' UID: ' + currentUserUuid.shiftRight(16));
+            logger.info('Got player UUID! UUID: ' + currentUserUuid + ' UID: ' + currentUserUuid.shiftRight(16));
         }
         const aoiSyncDelta = aoiSyncToMeDelta.BaseDelta;
         if (!aoiSyncDelta) {
@@ -395,34 +395,34 @@ export class PacketProcessor {
             const playerUid = vData.CharId.toNumber();
             
             if (vData.RoleLevel && vData.RoleLevel.Level) {
-                this.userDataManager.setAttrKV(playerUid, 'level', vData.RoleLevel.Level);
+                userDataManager.setAttrKV(playerUid, 'level', vData.RoleLevel.Level);
             }
             if (vData.Attr && vData.Attr.CurHp) {
-                this.userDataManager.setAttrKV(playerUid, 'hp', vData.Attr.CurHp.toNumber());
+                userDataManager.setAttrKV(playerUid, 'hp', vData.Attr.CurHp.toNumber());
             }
             if (vData.Attr && vData.Attr.MaxHp) {
-                this.userDataManager.setAttrKV(playerUid, 'max_hp', vData.Attr.MaxHp.toNumber());
+                userDataManager.setAttrKV(playerUid, 'max_hp', vData.Attr.MaxHp.toNumber());
             }
             if (!vData.CharBase) {
                 return;
             }
             const charBase = vData.CharBase;
             if (charBase.Name) {
-                this.userDataManager.setName(playerUid, charBase.Name);
+                userDataManager.setName(playerUid, charBase.Name);
             }
             if (charBase.FightPoint) {
-                this.userDataManager.setFightPoint(playerUid, charBase.FightPoint);
+                userDataManager.setFightPoint(playerUid, charBase.FightPoint);
             }
             if (!vData.ProfessionList) {
                 return;
             }
             const professionList = vData.ProfessionList;
             if (professionList.CurProfessionId) {
-                this.userDataManager.setProfession(playerUid, getProfessionNameFromId(professionList.CurProfessionId));
+                userDataManager.setProfession(playerUid, getProfessionNameFromId(professionList.CurProfessionId));
             }
         } catch (err) {
             fs.writeFileSync('./SyncContainerData.dat', payloadBuffer);
-            this.logger.warn(
+            logger.warn(
                 `Failed to decode SyncContainerData for player ${currentUserUuid.shiftRight(16)}. Please report to developer`
             );
             throw err;
@@ -462,13 +462,13 @@ export class PacketProcessor {
                         if (!playerName || playerName === '') {
                             break;
                         }
-                        this.userDataManager.setName(currentUserUuid.shiftRight(16).toNumber(), playerName);
+                        userDataManager.setName(currentUserUuid.shiftRight(16).toNumber(), playerName);
                         break;
                     }
                     case 35: { // FightPoint
                         const fightPoint = messageReader.readUInt32LE();
                         messageReader.readInt32();
-                        this.userDataManager.setFightPoint(currentUserUuid.shiftRight(16).toNumber(), fightPoint);
+                        userDataManager.setFightPoint(currentUserUuid.shiftRight(16).toNumber(), fightPoint);
                         break;
                     }
                 }
@@ -482,12 +482,12 @@ export class PacketProcessor {
                 switch (fieldIndex) {
                     case 1: { // CurHp
                         const curHp = messageReader.readUInt32LE();
-                        this.userDataManager.setAttrKV(currentUserUuid.shiftRight(16).toNumber(), 'hp', curHp);
+                        userDataManager.setAttrKV(currentUserUuid.shiftRight(16).toNumber(), 'hp', curHp);
                         break;
                     }
                     case 2: { // MaxHp
                         const maxHp = messageReader.readUInt32LE();
-                        this.userDataManager.setAttrKV(currentUserUuid.shiftRight(16).toNumber(), 'max_hp', maxHp);
+                        userDataManager.setAttrKV(currentUserUuid.shiftRight(16).toNumber(), 'max_hp', maxHp);
                         break;
                     }
                 }
@@ -503,7 +503,7 @@ export class PacketProcessor {
                     const curProfessionId = messageReader.readUInt32LE();
                     messageReader.readInt32();
                     if (curProfessionId) {
-                        this.userDataManager.setProfession(
+                        userDataManager.setProfession(
                             currentUserUuid.shiftRight(16).toNumber(),
                             getProfessionNameFromId(curProfessionId)
                         );
@@ -521,51 +521,51 @@ export class PacketProcessor {
             const reader = pbjs.Reader.create(attr.RawData);
             switch (attr.Id) {
                 case AttrType.AttrName: {
-                    this.userDataManager.setName(playerUid, reader.string());
+                    userDataManager.setName(playerUid, reader.string());
                     break;
                 }
                 case AttrType.AttrProfessionId: {
-                    this.userDataManager.setProfession(playerUid, getProfessionNameFromId(reader.int32()));
+                    userDataManager.setProfession(playerUid, getProfessionNameFromId(reader.int32()));
                     break;
                 }
                 case AttrType.AttrFightPoint: {
-                    this.userDataManager.setFightPoint(playerUid, reader.int32());
+                    userDataManager.setFightPoint(playerUid, reader.int32());
                     break;
                 }
                 case AttrType.AttrLevel: {
-                    this.userDataManager.setAttrKV(playerUid, 'level', reader.int32());
+                    userDataManager.setAttrKV(playerUid, 'level', reader.int32());
                     break;
                 }
                 case AttrType.AttrRankLevel: {
-                    this.userDataManager.setAttrKV(playerUid, 'rank_level', reader.int32());
+                    userDataManager.setAttrKV(playerUid, 'rank_level', reader.int32());
                     break;
                 }
                 case AttrType.AttrCri: {
-                    this.userDataManager.setAttrKV(playerUid, 'cri', reader.int32());
+                    userDataManager.setAttrKV(playerUid, 'cri', reader.int32());
                     break;
                 }
                 case AttrType.AttrLucky: {
-                    this.userDataManager.setAttrKV(playerUid, 'lucky', reader.int32());
+                    userDataManager.setAttrKV(playerUid, 'lucky', reader.int32());
                     break;
                 }
                 case AttrType.AttrHp: {
-                    this.userDataManager.setAttrKV(playerUid, 'hp', reader.int32());
+                    userDataManager.setAttrKV(playerUid, 'hp', reader.int32());
                     break;
                 }
                 case AttrType.AttrMaxHp: {
-                    this.userDataManager.setAttrKV(playerUid, 'max_hp', reader.int32());
+                    userDataManager.setAttrKV(playerUid, 'max_hp', reader.int32());
                     break;
                 }
                 case AttrType.AttrElementFlag: {
-                    this.userDataManager.setAttrKV(playerUid, 'element_flag', reader.int32());
+                    userDataManager.setAttrKV(playerUid, 'element_flag', reader.int32());
                     break;
                 }
                 case AttrType.AttrEnergyFlag: {
-                    this.userDataManager.setAttrKV(playerUid, 'energy_flag', reader.int32());
+                    userDataManager.setAttrKV(playerUid, 'energy_flag', reader.int32());
                     break;
                 }
                 case AttrType.AttrReductionLevel: {
-                    this.userDataManager.setAttrKV(playerUid, 'reduction_level', reader.int32());
+                    userDataManager.setAttrKV(playerUid, 'reduction_level', reader.int32());
                     break;
                 }
             }
@@ -581,25 +581,25 @@ export class PacketProcessor {
             switch (attr.Id) {
                 case AttrType.AttrName: {
                     const enemyName = reader.string();
-                    this.userDataManager.enemyCache.name.set(enemyUid, enemyName);
-                    this.logger.info(`Found monster name ${enemyName} for id ${enemyUid}`);
+                    userDataManager.enemyCache.name.set(enemyUid, enemyName);
+                    logger.info(`Found monster name ${enemyName} for id ${enemyUid}`);
                     break;
                 }
                 case AttrType.AttrId: {
                     const attrId = reader.int32();
                     const name = monsterNames[attrId];
                     if (name) {
-                        this.logger.info(`Found monster name ${name} for id ${enemyUid}`);
-                        this.userDataManager.enemyCache.name.set(enemyUid, name);
+                        logger.info(`Found monster name ${name} for id ${enemyUid}`);
+                        userDataManager.enemyCache.name.set(enemyUid, name);
                     }
                     break;
                 }
                 case AttrType.AttrHp: {
-                    this.userDataManager.enemyCache.hp.set(enemyUid, reader.int32());
+                    userDataManager.enemyCache.hp.set(enemyUid, reader.int32());
                     break;
                 }
                 case AttrType.AttrMaxHp: {
-                    this.userDataManager.enemyCache.maxHp.set(enemyUid, reader.int32());
+                    userDataManager.enemyCache.maxHp.set(enemyUid, reader.int32());
                     break;
                 }
             }
@@ -638,7 +638,7 @@ export class PacketProcessor {
         reader.readUInt32(); // stubId
         const methodId = reader.readUInt32();
         if (serviceUuid !== 0x0000000063335342n) {
-            this.logger.debug(`Skipping NotifyMsg with serviceId ${serviceUuid}`);
+            logger.debug(`Skipping NotifyMsg with serviceId ${serviceUuid}`);
             return;
         }
         let msgPayload = reader.readRemaining();
@@ -667,14 +667,14 @@ export class PacketProcessor {
                 break;
             }
             default: {
-                this.logger.debug(`Skipping NotifyMsg with methodId ${methodId}`);
+                logger.debug(`Skipping NotifyMsg with methodId ${methodId}`);
                 break;
             }
         }
     }
 
     _processReturnMsg(reader, isZstdCompressed) {
-        this.logger.debug('Unimplemented processing return');
+        logger.debug('Unimplemented processing return');
     }
 
     processPacket(packets) {
@@ -685,7 +685,7 @@ export class PacketProcessor {
             while (packetsReader.remaining() >= MIN_PACKET_SIZE) {
                 const packetSize = packetsReader.peekUInt32();
                 if (packetSize < MIN_PACKET_SIZE || packetSize > MAX_PACKET_SIZE) {
-                    this.logger.warn(`Invalid packet length detected: ${packetSize}. Discarding corrupt buffer.`);
+                    logger.warn(`Invalid packet length detected: ${packetSize}. Discarding corrupt buffer.`);
                     return;
                 }
                 if (packetsReader.remaining() < packetSize) {
@@ -724,7 +724,7 @@ export class PacketProcessor {
                 }
             }
         } catch (e) {
-            this.logger.error(
+            logger.error(
                 `Fatal error while parsing packet data for player ${currentUserUuid.shiftRight(16)}.\nErr: ${e.stack}`
             );
         }
@@ -746,13 +746,13 @@ export class PacketProcessor {
             const tempReader = new BinaryReader(this.internalBuffer);
             const hasHeader = doesStreamHaveIdentifier(tempReader);
             if (!hasHeader) {
-                this.logger.warn(`Invalid packet header: ${this.internalBuffer.readUInt32LE(0)}. Advancing to next chunk.`);
+                logger.warn(`Invalid packet header: ${this.internalBuffer.readUInt32LE(0)}. Advancing to next chunk.`);
                 this.internalBuffer = this.internalBuffer.subarray(4);
                 continue;
             }
             const packetSize = this.internalBuffer.readUInt32LE(0);
             if (packetSize < MIN_PACKET_SIZE || packetSize > MAX_PACKET_SIZE) {
-                this.logger.warn(`Invalid packet length detected: ${packetSize}. Clearing internal buffer.`);
+                logger.warn(`Invalid packet length detected: ${packetSize}. Clearing internal buffer.`);
                 this.internalBuffer = Buffer.alloc(0);
                 break;
             }

@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
-import { startServer } from './server.js';
 import { createMainWindow } from './window.js';
+import server from './server.js';
 
 let mainWindow;
 
@@ -21,7 +21,7 @@ async function initialize() {
 
     try {
         console.log('[Main Process] Attempting to start server automatically...');
-        const serverUrl = await startServer('auto', 'info');
+        const serverUrl = await server.start();
 
         console.log(`[Main Process] Server started. Loading URL: ${serverUrl}`);
         mainWindow.loadURL(serverUrl);

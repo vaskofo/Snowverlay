@@ -1,6 +1,8 @@
 import express from 'express';
 import path from 'path';
+import logger from '../services/Logger.js';
 import { promises as fsPromises } from 'fs';
+import userDataManager from '../services/userDataManager.js';
 
 /**
  * Creates and returns an Express Router instance configured with all API endpoints.
@@ -10,7 +12,7 @@ import { promises as fsPromises } from 'fs';
  * @param {string} SETTINGS_PATH The path to the settings file.
  * @returns {express.Router} An Express Router with all routes defined.
  */
-export function createApiRouter(userDataManager, logger, isPaused, SETTINGS_PATH) {
+export function createApiRouter(isPaused, SETTINGS_PATH) {
     const router = express.Router();
 
     // Middleware to parse JSON requests

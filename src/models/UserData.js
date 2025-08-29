@@ -70,6 +70,11 @@ export class UserData {
         this.fightPoint = 0; // 总评分
         this.subProfession = '';
         this.attr = {};
+        this.lastUpdateTime = Date.now();
+    }
+
+    _touch() {
+        this.lastUpdateTime = Date.now();
     }
 
     /** 添加伤害记录
@@ -82,6 +87,7 @@ export class UserData {
      * @param {number} hpLessenValue - 生命值减少量
      */
     addDamage(skillId, element, damage, isCrit, isLucky, isCauseLucky, hpLessenValue = 0) {
+        this._touch();
         this.damageStats.addRecord(damage, isCrit, isLucky, hpLessenValue);
         // 记录技能使用情况
         if (!this.skillUsage.has(skillId)) {
@@ -105,6 +111,7 @@ export class UserData {
      * @param {boolean} [isCauseLucky] - 是否造成幸运
      */
     addHealing(skillId, element, healing, isCrit, isLucky, isCauseLucky) {
+        this._touch();
         this.healingStats.addRecord(healing, isCrit, isLucky);
         // 记录技能使用情况
         skillId = skillId + 1000000000;
@@ -125,8 +132,11 @@ export class UserData {
      * @param {boolean} isDead - 是否致死伤害
      * */
     addTakenDamage(damage, isDead) {
+        this._touch();
         this.takenDamage += damage;
-        if (isDead) this.deadCount++;
+        if (isDead) {
+            this.deadCount++;
+        }
     }
 
     /** 更新实时DPS和HPS 计算过去1秒内的总伤害和治疗 */
@@ -210,7 +220,10 @@ export class UserData {
      * @param {string} profession - 职业名称
      * */
     setProfession(profession) {
-        if (profession !== this.profession) this.setSubProfession('');
+        this._touch();
+        if (profession !== this.profession) {
+            this.setSubProfession('');
+        }
         this.profession = profession;
     }
 
@@ -218,6 +231,7 @@ export class UserData {
      * @param {string} subProfession - 子职业名称
      * */
     setSubProfession(subProfession) {
+        this._touch();
         this.subProfession = subProfession;
     }
 
@@ -225,21 +239,24 @@ export class UserData {
      * @param {string} name - 姓名
      * */
     setName(name) {
+        this._touch();
         this.name = name;
     }
 
     /** 设置用户总评分
      * @param {number} fightPoint - 总评分
-     */
+     * */
     setFightPoint(fightPoint) {
+        this._touch();
         this.fightPoint = fightPoint;
     }
 
     /** 设置额外数据
      * @param {string} key
      * @param {any} value
-     */
+     * */
     setAttrKV(key, value) {
+        this._touch();
         this.attr[key] = value;
     }
 
@@ -250,5 +267,6 @@ export class UserData {
         this.takenDamage = 0;
         this.skillUsage.clear();
         this.fightPoint = 0;
+        this._touch();
     }
 }
