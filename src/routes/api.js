@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import logger from '../services/Logger.js';
 import { promises as fsPromises } from 'fs';
-import userDataManager from '../services/userDataManager.js';
+import userDataManager from '../services/UserDataManager.js';
 
 /**
  * Creates and returns an Express Router instance configured with all API endpoints.

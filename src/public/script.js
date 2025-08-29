@@ -26,6 +26,7 @@ function getNextColorShades() {
 
 const columnsContainer = document.getElementById('columnsContainer');
 const settingsContainer = document.getElementById('settingsContainer');
+const helpContainer = document.getElementById('helpContainer');
 const pauseButton = document.getElementById('pauseButton');
 const serverStatus = document.getElementById('serverStatus');
 const opacitySlider = document.getElementById('opacitySlider');
@@ -189,16 +190,16 @@ function closeClient() {
 
 function showServerStatus(status) {
     const statusElement = document.getElementById('serverStatus');
-    statusElement.className = status;
+    statusElement.className = `status-indicator ${status}`;
 }
 
 function getServerStatus() {
     const statusElement = document.getElementById('serverStatus');
-    return statusElement.className;
+    return statusElement.className.replace('status-indicator ', '');
 }
 
 function connectWebSocket() {
-    socket = io(SERVER_URL);
+    socket = io(`ws://${SERVER_URL}`);
 
     socket.on('connect', () => {
         isWebSocketConnected = true;
@@ -218,10 +219,10 @@ function connectWebSocket() {
 
     socket.on('user_deleted', (data) => {
         console.log(`User ${data.uid} was removed due to inactivity.`);
-        delete allUsers[data.uid]; 
+        delete allUsers[data.uid];
         updateAll();
     });
-    
+
     socket.on('connect_error', (error) => {
         showServerStatus('disconnected');
         console.error('WebSocket connection error:', error);
@@ -249,13 +250,26 @@ function initialize() {
 
 function toggleSettings() {
     const isSettingsVisible = !settingsContainer.classList.contains('hidden');
-    
+
     if (isSettingsVisible) {
         settingsContainer.classList.add('hidden');
         columnsContainer.classList.remove('hidden');
     } else {
         settingsContainer.classList.remove('hidden');
         columnsContainer.classList.add('hidden');
+        helpContainer.classList.add('hidden'); // Also hide help
+    }
+}
+
+function toggleHelp() {
+    const isHelpVisible = !helpContainer.classList.contains('hidden');
+    if (isHelpVisible) {
+        helpContainer.classList.add('hidden');
+        columnsContainer.classList.remove('hidden');
+    } else {
+        helpContainer.classList.remove('hidden');
+        columnsContainer.classList.add('hidden');
+        settingsContainer.classList.add('hidden'); // Also hide settings
     }
 }
 
@@ -267,9 +281,18 @@ document.addEventListener('DOMContentLoaded', () => {
     initialize();
 
     setBackgroundOpacity(opacitySlider.value);
-    
+
     opacitySlider.addEventListener('input', (event) => {
         setBackgroundOpacity(event.target.value);
+    });
+
+    // Listen for the passthrough toggle event from the main process
+    window.electronAPI.onTogglePassthrough((isIgnoring) => {
+        if (isIgnoring) {
+            columnsContainer.classList.remove('hidden');
+            settingsContainer.classList.add('hidden');
+            helpContainer.classList.add('hidden');
+        }
     });
 });
 
@@ -277,3 +300,4 @@ window.clearData = clearData;
 window.togglePause = togglePause;
 window.toggleSettings = toggleSettings;
 window.closeClient = closeClient;
+window.toggleHelp = toggleHelp;

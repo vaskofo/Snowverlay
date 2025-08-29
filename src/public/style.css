@@ -1,5 +1,6 @@
 /* Global Styles & Resets */
-html, body {
+html,
+body {
     height: 100%;
     margin: 0;
     padding: 0;
@@ -64,7 +65,7 @@ html, body {
     font-weight: 700;
     color: #fff;
     white-space: nowrap;
-    text-shadow: 1px 1px 3px rgba(0,0,0,0.7);
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
 }
 
 .button-group {
@@ -82,7 +83,9 @@ html, body {
     border-radius: 6px;
     font-size: 11px;
     cursor: pointer;
-    transition: background-color 0.2s ease, transform 0.1s ease;
+    transition:
+        background-color 0.2s ease,
+        transform 0.1s ease;
 }
 
 .button-group button:hover {
@@ -105,16 +108,31 @@ html, body {
     width: 10px !important;
     height: 10px !important;
     border-radius: 50%;
-    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
     flex-shrink: 0;
     transition: background-color 0.3s ease;
 }
 
-#serverStatus.connected { background-color: #4CAF50; box-shadow: 0 0 8px #4CAF50; }
-#serverStatus.disconnected { background-color: #F44336; box-shadow: 0 0 8px #F44336; }
-#serverStatus.reconnecting { background-color: #FFEB3B; box-shadow: 0 0 8px #FFEB3B; }
-#serverStatus.cleared { background-color: #2196F3; box-shadow: 0 0 8px #2196F3; }
-#serverStatus.paused { background-color: #FF9800; box-shadow: 0 0 8px #FF9800; }
+#serverStatus.connected {
+    background-color: #4caf50;
+    box-shadow: 0 0 8px #4caf50;
+}
+#serverStatus.disconnected {
+    background-color: #f44336;
+    box-shadow: 0 0 8px #f44336;
+}
+#serverStatus.reconnecting {
+    background-color: #ffeb3b;
+    box-shadow: 0 0 8px #ffeb3b;
+}
+#serverStatus.cleared {
+    background-color: #2196f3;
+    box-shadow: 0 0 8px #2196f3;
+}
+#serverStatus.paused {
+    background-color: #ff9800;
+    box-shadow: 0 0 8px #ff9800;
+}
 
 .columns-container {
     display: flex;
@@ -241,11 +259,12 @@ html, body {
     padding-left: 8px;
 }
 
-.bar-value-total, .bar-value-rate {
+.bar-value-total,
+.bar-value-rate {
     font-size: 11px;
     color: #fff;
     font-weight: bold;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
     z-index: 2;
 }
 
@@ -267,7 +286,7 @@ html, body {
     border-radius: 4px;
     transition: width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
     z-index: 1;
-    box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .dps-bar-fill {
@@ -280,4 +299,29 @@ html, body {
 
 .data-item.is-active {
     background: rgba(255, 255, 255, 0.1);
+}
+
+.help-container {
+    height: 100%;
+    width: 100%;
+    padding: 0px 8px;
+}
+
+.help-container h2,
+.help-container h3 {
+    color: #fff;
+    border-bottom: 1px solid #555;
+    padding-bottom: 5px;
+}
+.help-container p,
+.help-container li {
+    color: #ccc;
+    line-height: 1.6;
+}
+.help-container code {
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+    color: #ffc107;
 }

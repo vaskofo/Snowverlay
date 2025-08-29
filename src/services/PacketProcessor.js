@@ -6,7 +6,7 @@ import logger from './Logger.js';
 import { createRequire } from 'module';
 import monsterNames from '../tables/monster_names.json' with { type: 'json' };
 import { BinaryReader } from '../models/BinaryReader.js';
-import userDataManager from '../services/userDataManager.js';
+import userDataManager from './UserDataManager.js';
 
 const require = createRequire(import.meta.url);
 const pb = require('../algo/blueprotobuf.js');
@@ -171,18 +171,18 @@ const doesStreamHaveIdentifier = (reader) => {
     if (reader.remaining() < 8) {
         return false;
     }
-    
+
     let identifier = reader.readUInt32LE();
     reader.readInt32();
-    
+
     if (identifier !== 0xfffffffe) {
         reader.position = startPos;
         return false;
     }
-    
+
     identifier = reader.readInt32();
     reader.readInt32();
-    
+
     reader.position = startPos;
     return true;
 };
@@ -190,10 +190,10 @@ const doesStreamHaveIdentifier = (reader) => {
 const streamReadString = (reader) => {
     const length = reader.readUInt32LE();
     reader.readInt32();
-    
+
     const buffer = reader.readBytes(length);
     reader.readInt32();
-    
+
     return buffer.toString();
 };
 
@@ -220,11 +220,11 @@ export class PacketProcessor {
         if (!targetUuid) {
             return;
         }
-        
+
         const isTargetPlayer = isUuidPlayer(targetUuid);
         const isTargetMonster = isUuidMonster(targetUuid);
         targetUuid = targetUuid.shiftRight(16);
-        
+
         const attrCollection = aoiSyncDelta.Attrs;
         if (attrCollection && attrCollection.Attrs) {
             if (isTargetPlayer) {
@@ -233,42 +233,42 @@ export class PacketProcessor {
                 this._processEnemyAttrs(targetUuid.toNumber(), attrCollection.Attrs);
             }
         }
-        
+
         const skillEffect = aoiSyncDelta.SkillEffects;
         if (!skillEffect || !skillEffect.Damages) {
             return;
         }
-        
+
         for (const syncDamageInfo of skillEffect.Damages) {
             const skillId = syncDamageInfo.OwnerId;
             if (!skillId) {
                 continue;
             }
-            
+
             let attackerUuid = syncDamageInfo.TopSummonerId || syncDamageInfo.AttackerUuid;
             if (!attackerUuid) {
                 continue;
             }
-            
+
             const isAttackerPlayer = isUuidPlayer(attackerUuid);
             attackerUuid = attackerUuid.shiftRight(16);
-            
+
             const value = syncDamageInfo.Value;
             const luckyValue = syncDamageInfo.LuckyValue;
             const damage = value ?? luckyValue ?? Long.ZERO;
             if (damage.isZero()) {
                 continue;
             }
-            
-            const isCrit = (syncDamageInfo.TypeFlag != null) ? (syncDamageInfo.TypeFlag & 1) === 1 : false;
-            const isCauseLucky = (syncDamageInfo.TypeFlag != null) ? (syncDamageInfo.TypeFlag & 0b100) === 0b100 : false;
+
+            const isCrit = syncDamageInfo.TypeFlag != null ? (syncDamageInfo.TypeFlag & 1) === 1 : false;
+            const isCauseLucky = syncDamageInfo.TypeFlag != null ? (syncDamageInfo.TypeFlag & 0b100) === 0b100 : false;
             const isHeal = syncDamageInfo.Type === pb.EDamageType.Heal;
-            const isDead = (syncDamageInfo.IsDead != null) ? syncDamageInfo.IsDead : false;
+            const isDead = syncDamageInfo.IsDead != null ? syncDamageInfo.IsDead : false;
             const isLucky = !!luckyValue;
-            const hpLessenValue = (syncDamageInfo.HpLessenValue != null) ? syncDamageInfo.HpLessenValue : Long.ZERO;
+            const hpLessenValue = syncDamageInfo.HpLessenValue != null ? syncDamageInfo.HpLessenValue : Long.ZERO;
             const damageElement = getDamageElement(syncDamageInfo.Property);
             const damageSource = syncDamageInfo.DamageSource ?? 0;
-            
+
             if (isTargetPlayer) {
                 if (isHeal) {
                     userDataManager.addHealing(
@@ -302,10 +302,10 @@ export class PacketProcessor {
                     );
                 }
                 if (isDead) {
-                    userDataManager.deleteEnemyData(targetUuid.toNumber())
+                    userDataManager.deleteEnemyData(targetUuid.toNumber());
                 }
-            } 
-            
+            }
+
             let extra = [];
             if (isCrit) {
                 extra.push('Crit');
@@ -319,10 +319,10 @@ export class PacketProcessor {
             if (extra.length === 0) {
                 extra.push('Normal');
             }
-            
+
             const actionType = isHeal ? 'HEAL' : 'DMG';
             let infoStr = `SRC: `;
-            
+
             if (isAttackerPlayer) {
                 const attacker = userDataManager.getUser(attackerUuid.toNumber());
                 if (attacker.name) {
@@ -335,7 +335,7 @@ export class PacketProcessor {
                 }
                 infoStr += `#${attackerUuid.toString()}(enemy)`;
             }
-            
+
             let targetName = '';
             if (isTargetPlayer) {
                 const target = userDataManager.getUser(targetUuid.toNumber());
@@ -349,7 +349,7 @@ export class PacketProcessor {
                 }
                 targetName += `#${targetUuid.toString()}(enemy)`;
             }
-            
+
             infoStr += ` TGT: ${targetName}`;
             const dmgLog = `[${actionType}] DS: ${getDamageSource(damageSource)} ${infoStr} ID: ${skillId} VAL: ${damage} HPLSN: ${hpLessenValue} ELEM: ${damageElement.slice(-1)} EXT: ${extra.join('|')}`;
             //logger.info(dmgLog);
@@ -393,7 +393,7 @@ export class PacketProcessor {
                 return;
             }
             const playerUid = vData.CharId.toNumber();
-            
+
             if (vData.RoleLevel && vData.RoleLevel.Level) {
                 userDataManager.setAttrKV(playerUid, 'level', vData.RoleLevel.Level);
             }
@@ -433,22 +433,22 @@ export class PacketProcessor {
         if (currentUserUuid.isZero()) {
             return;
         }
-        
+
         // --- FIX: Correctly access the protobuf message type ---
         const syncContainerDirtyData = pb.SyncContainerDirtyData.decode(payloadBuffer);
-        
+
         if (!syncContainerDirtyData.VData || !syncContainerDirtyData.VData.Buffer) {
             return;
         }
-        
+
         const messageReader = new BinaryReader(Buffer.from(syncContainerDirtyData.VData.Buffer));
         if (!doesStreamHaveIdentifier(messageReader)) {
             return;
         }
-        
+
         let fieldIndex = messageReader.readUInt32LE();
         messageReader.readInt32();
-        
+
         switch (fieldIndex) {
             case 2: // CharBase
                 if (!doesStreamHaveIdentifier(messageReader)) {
@@ -457,7 +457,8 @@ export class PacketProcessor {
                 fieldIndex = messageReader.readUInt32LE();
                 messageReader.readInt32();
                 switch (fieldIndex) {
-                    case 5: { // Name
+                    case 5: {
+                        // Name
                         const playerName = streamReadString(messageReader);
                         if (!playerName || playerName === '') {
                             break;
@@ -465,7 +466,8 @@ export class PacketProcessor {
                         userDataManager.setName(currentUserUuid.shiftRight(16).toNumber(), playerName);
                         break;
                     }
-                    case 35: { // FightPoint
+                    case 35: {
+                        // FightPoint
                         const fightPoint = messageReader.readUInt32LE();
                         messageReader.readInt32();
                         userDataManager.setFightPoint(currentUserUuid.shiftRight(16).toNumber(), fightPoint);
@@ -480,12 +482,14 @@ export class PacketProcessor {
                 fieldIndex = messageReader.readUInt32LE();
                 messageReader.readInt32();
                 switch (fieldIndex) {
-                    case 1: { // CurHp
+                    case 1: {
+                        // CurHp
                         const curHp = messageReader.readUInt32LE();
                         userDataManager.setAttrKV(currentUserUuid.shiftRight(16).toNumber(), 'hp', curHp);
                         break;
                     }
-                    case 2: { // MaxHp
+                    case 2: {
+                        // MaxHp
                         const maxHp = messageReader.readUInt32LE();
                         userDataManager.setAttrKV(currentUserUuid.shiftRight(16).toNumber(), 'max_hp', maxHp);
                         break;

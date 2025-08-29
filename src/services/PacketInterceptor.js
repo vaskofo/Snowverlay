@@ -1,7 +1,7 @@
 import cap from 'cap';
 import zlib from 'zlib';
-import logger from './Logger.js'
-import userDataManager from './userDataManager.js';
+import logger from './Logger.js';
+import userDataManager from './UserDataManager.js';
 
 import { PacketProcessor } from './PacketProcessor.js';
 import { Lock } from '../models/Lock.js';
@@ -27,7 +27,7 @@ const clearDataOnServerChange = () => {
 
 export class PacketInterceptor {
     static start(server, port, resolve, reject) {
-        server.listen(port, async() => {    
+        server.listen(port, async () => {
             const devices = cap.deviceList();
             let num;
 
@@ -39,14 +39,13 @@ export class PacketInterceptor {
             } else {
                 return reject(new Error('Default network interface not found!'));
             }
-            
 
             if (!zlib.zstdDecompressSync) {
                 const errorMsg = 'zstdDecompressSync is not available! Please update your Node.js!';
                 logger.error(errorMsg);
                 return reject(new Error(errorMsg));
             }
-            
+
             const url = `http://localhost:${port}`;
             logger.info(`Web Server started at ${url}`);
             logger.info('WebSocket Server started');
@@ -113,10 +112,7 @@ export class PacketInterceptor {
                     return fullPayload;
                 }
                 return Buffer.from(
-                    frameBuffer.subarray(
-                        ipPacket.offset,
-                        ipPacket.offset + (ipPacket.info.totallen - ipPacket.hdrlen)
-                    )
+                    frameBuffer.subarray(ipPacket.offset, ipPacket.offset + (ipPacket.info.totallen - ipPacket.hdrlen))
                 );
             };
 
@@ -177,9 +173,7 @@ export class PacketInterceptor {
                                         if (!data1) break;
 
                                         const signature = Buffer.from([0x00, 0x63, 0x33, 0x53, 0x42, 0x00]); //c3SB??
-                                        if (
-                                            Buffer.compare(data1.subarray(5, 5 + signature.length), signature) !== 0
-                                        )
+                                        if (Buffer.compare(data1.subarray(5, 5 + signature.length), signature) !== 0)
                                             break;
 
                                         if (current_server !== src_server) {
@@ -194,8 +188,8 @@ export class PacketInterceptor {
                             }
                             if (buf.length === 0x62) {
                                 const signature = Buffer.from([
-                                    0x00, 0x00, 0x00, 0x62, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x11, 0x45,
-                                    0x14, 0x00, 0x00, 0x00, 0x00, 0x0a, 0x4e, 0x08, 0x01, 0x22, 0x24,
+                                    0x00, 0x00, 0x00, 0x62, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x11, 0x45, 0x14,
+                                    0x00, 0x00, 0x00, 0x00, 0x0a, 0x4e, 0x08, 0x01, 0x22, 0x24,
                                 ]);
                                 if (
                                     Buffer.compare(buf.subarray(0, 10), signature.subarray(0, 10)) === 0 &&
@@ -206,9 +200,7 @@ export class PacketInterceptor {
                                         clearTcpCache();
                                         tcp_next_seq = tcpPacket.info.seqno + buf.length;
                                         clearDataOnServerChange();
-                                        logger.info(
-                                            'Got Scene Server Address by Login Return Packet: ' + src_server
-                                        );
+                                        logger.info('Got Scene Server Address by Login Return Packet: ' + src_server);
                                     }
                                 }
                             }

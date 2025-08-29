@@ -10,8 +10,8 @@ let mainWindow;
 
 export function createMainWindow() {
     mainWindow = new BrowserWindow({
-        width: 500,
-        height: 365,
+        width: 560,
+        height: 405,
         minWidth: 280,
         minHeight: 40,
         transparent: true,

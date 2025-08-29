@@ -2,7 +2,7 @@ import { UserData } from '../models/UserData.js';
 import { Lock } from '../models/Lock.js';
 import { config } from '../config.js';
 import socket from './Socket.js';
-import logger from './Logger.js'
+import logger from './Logger.js';
 import fsPromises from 'fs/promises';
 import path from 'path';
 
@@ -47,7 +47,7 @@ class UserDataManager {
     cleanUpInactiveUsers() {
         const inactiveThreshold = 60 * 1000; // 1 minute
         const currentTime = Date.now();
-        
+
         for (const [uid, user] of this.users.entries()) {
             if (currentTime - user.lastUpdateTime > inactiveThreshold) {
                 socket.emit('user_deleted', { uid });

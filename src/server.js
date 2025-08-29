@@ -7,9 +7,9 @@ import fsPromises from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { createApiRouter } from './routes/api.js';
 import { PacketInterceptor } from './services/PacketInterceptor.js';
-import userDataManager from './services/userDataManager.js';
+import userDataManager from './services/UserDataManager.js';
 import socket from './services/Socket.js';
-import logger from './services/Logger.js'
+import logger from './services/Logger.js';
 
 import skillConfig from './tables/skill_names.json' with { type: 'json' };
 
@@ -24,36 +24,36 @@ let globalSettings = {
 };
 
 class Server {
-    start = async () => new Promise(async (resolve, reject) => {
-        try {
-            this.resolve = resolve;
-            this.reject = reject;
+    start = async () =>
+        new Promise(async (resolve, reject) => {
+            try {
+                this.resolve = resolve;
+                this.reject = reject;
 
-            await this._loadGlobalSettings();
+                await this._loadGlobalSettings();
 
-            const app = express();
-            app.use(cors());
-            app.use(express.static(path.join(__dirname, 'public')));
+                const app = express();
+                app.use(cors());
+                app.use(express.static(path.join(__dirname, 'public')));
 
-            const apiRouter = createApiRouter(isPaused, SETTINGS_PATH);
-            app.use('/api', apiRouter);
+                const apiRouter = createApiRouter(isPaused, SETTINGS_PATH);
+                app.use('/api', apiRouter);
 
-            this.server = http.createServer(app);
-            this.server.on('error', (err) => reject(err));
+                this.server = http.createServer(app);
+                this.server.on('error', (err) => reject(err));
 
-            socket.init(this.server);
-            userDataManager.init();
+                socket.init(this.server);
+                userDataManager.init();
 
-            this._configureProcessEvents();
-            this._configureSocketEmitter();
-            this._configureSocketListener();
-            await this._startPacketInterceptor();
-            
-        } catch (error) {
-            console.error('Error during server startup:', error);
-            reject(error);
-        }
-    });
+                this._configureProcessEvents();
+                this._configureSocketEmitter();
+                this._configureSocketListener();
+                await this._startPacketInterceptor();
+            } catch (error) {
+                console.error('Error during server startup:', error);
+                reject(error);
+            }
+        });
 
     _configureProcessEvents() {
         process.on('SIGINT', () => {
@@ -88,13 +88,14 @@ class Server {
     }
 
     async _startPacketInterceptor() {
-        const checkPort = (port) => new Promise((resolve) => {
-            const s = net.createServer();
-            s.once('error', () => resolve(false));
-            s.once('listening', () => s.close(() => resolve(true)));
-            s.listen(port);
-        });
-        
+        const checkPort = (port) =>
+            new Promise((resolve) => {
+                const s = net.createServer();
+                s.once('error', () => resolve(false));
+                s.once('listening', () => s.close(() => resolve(true)));
+                s.listen(port);
+            });
+
         let server_port = 8990;
         while (!(await checkPort(server_port))) {
             logger.warn(`port ${server_port} is already in use`);
