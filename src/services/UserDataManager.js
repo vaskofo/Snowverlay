@@ -277,6 +277,12 @@ export class UserDataManager {
         return result;
     }
 
+    deleteEnemyData(id) {
+        this.enemyCache.name.delete(id);
+        this.enemyCache.hp.delete(id);
+        this.enemyCache.maxHp.delete(id);
+    }
+
     refreshEnemyCache() {
         this.enemyCache.name.clear();
         this.enemyCache.hp.clear();

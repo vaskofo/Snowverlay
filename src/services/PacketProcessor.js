@@ -287,19 +287,24 @@ export class PacketProcessor {
                 if (isDead) {
                     this.userDataManager.setAttrKV(targetUuid.toNumber(), 'hp', 0);
                 }
-            } else if (!isHeal && isAttackerPlayer) {
-                this.userDataManager.addDamage(
-                    attackerUuid.toNumber(),
-                    skillId,
-                    damageElement,
-                    damage.toNumber(),
-                    isCrit,
-                    isLucky,
-                    isCauseLucky,
-                    hpLessenValue.toNumber(),
-                    targetUuid.toNumber()
-                );
-            }
+            } else {
+                if (!isHeal && isAttackerPlayer) {
+                    this.userDataManager.addDamage(
+                        attackerUuid.toNumber(),
+                        skillId,
+                        damageElement,
+                        damage.toNumber(),
+                        isCrit,
+                        isLucky,
+                        isCauseLucky,
+                        hpLessenValue.toNumber(),
+                        targetUuid.toNumber()
+                    );
+                }
+                if (isDead) {
+                    this.userDataManager.deleteEnemyData(targetUuid.toNumber())
+                }
+            } 
             
             let extra = [];
             if (isCrit) {
