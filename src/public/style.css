@@ -13,6 +13,10 @@ html, body {
     -webkit-font-smoothing: antialiased;
 }
 
+:root {
+    --main-bg-opacity: 0.05;
+}
+
 #app-wrapper {
     width: 100%;
     height: 100%;
@@ -29,7 +33,7 @@ html, body {
     box-sizing: border-box;
     border-radius: 12px;
     overflow: hidden;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(48, 51, 53, var(--main-bg-opacity));
     border: 1px solid rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
@@ -43,7 +47,7 @@ html, body {
     align-items: center;
     justify-content: space-between;
     padding: 8px 12px;
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(18, 21, 23, 0.3);
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -117,7 +121,7 @@ html, body {
     align-content: flex-start;
     gap: 8px;
     flex-grow: 1;
-    overflow-y: auto; 
+    overflow-y: auto;
     overflow-x: hidden;
     min-width: 0;
     padding: 8px;
@@ -127,6 +131,27 @@ html, body {
 }
 .columns-container {
     scrollbar-width: none;
+}
+
+.settings-container {
+    flex-grow: 1;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    color: #fff;
+    overflow-y: auto;
+}
+
+.settings-option {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.hidden {
+    display: none !important;
 }
 
 .data-list {
