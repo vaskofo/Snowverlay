@@ -1,104 +1,40 @@
-import { app, BrowserWindow, ipcMain, globalShortcut } from 'electron';
-import { createMainWindow } from './window.js';
-import server from './server.js';
+import squirrelStartup from 'electron-squirrel-startup';
+import { app, BrowserWindow, globalShortcut } from 'electron';
+import { checkForNpcap } from './client/npcapHandler.js';
 
-let mainWindow;
-// A state variable to track the pass-through status
-let isIgnoringMouseEvents = false;
+// Handle creating/removing shortcuts on Windows when installing/uninstalling.
+// This must be the very first thing the app does.
+if (squirrelStartup) {
+    app.quit();
+}
 
 async function initialize() {
+    const canProceed = await checkForNpcap();
+    if (!canProceed) {
+        return;
+    }
+
+    // --- Dynamic Imports ---
+    // Now that we know NpCap is installed, we can safely import the rest of our application modules.
+    const { default: window } = await import('./client/Window.js');
+    const { registerShortcuts } = await import('./client/shortcuts.js');
+    const { default: server } = await import('./server.js');
+    await import('./client/IpcListeners.js');
+    // ---------------------
+
     if (process.platform === 'win32') {
         app.setAppUserModelId(app.name);
     }
 
-    mainWindow = createMainWindow();
-
-    mainWindow.on('ready-to-show', () => {
-        mainWindow.show();
-    });
-
-    const passThroughShortcut = 'Control+`';
-    const ret = globalShortcut.register(passThroughShortcut, () => {
-        isIgnoringMouseEvents = !isIgnoringMouseEvents;
-
-        if (isIgnoringMouseEvents) {
-            mainWindow.setIgnoreMouseEvents(true, { forward: true });
-            console.log('Mouse events are now being ignored (pass-through enabled).');
-        } else {
-            mainWindow.setIgnoreMouseEvents(false);
-            console.log('Mouse events are now being captured (pass-through disabled).');
-        }
-        // Send a message to the renderer process with the current state
-        mainWindow.webContents.send('passthrough-toggled', isIgnoringMouseEvents);
-    });
-
-    if (!ret) {
-        console.error(`Failed to register global shortcut: ${passThroughShortcut}`);
-    }
-
-    // --- Window Resize Shortcuts ---
-    const resizeIncrement = 20; // pixels to resize by
-
-    globalShortcut.register('Control+Up', () => {
-        const [width, height] = mainWindow.getSize();
-        // Prevent window from becoming too small (inverted)
-        const newHeight = Math.max(40, height - resizeIncrement);
-        mainWindow.setSize(width, newHeight);
-    });
-
-    globalShortcut.register('Control+Down', () => {
-        const [width, height] = mainWindow.getSize();
-        // Inverted arrow - increases height
-        mainWindow.setSize(width, height + resizeIncrement);
-    });
-
-    globalShortcut.register('Control+Left', () => {
-        const [width, height] = mainWindow.getSize();
-        // Prevent window from becoming too small
-        const newWidth = Math.max(280, width - resizeIncrement);
-        mainWindow.setSize(newWidth, height);
-    });
-
-    globalShortcut.register('Control+Right', () => {
-        const [width, height] = mainWindow.getSize();
-        mainWindow.setSize(width + resizeIncrement, height);
-    });
-    // --- End of Resize Shortcuts ---
-
-    // --- Window Move Shortcuts ---
-    const moveIncrement = 20; // pixels to move by
-
-    globalShortcut.register('Control+Alt+Up', () => {
-        const [x, y] = mainWindow.getPosition();
-        mainWindow.setPosition(x, y - moveIncrement);
-    });
-
-    globalShortcut.register('Control+Alt+Down', () => {
-        const [x, y] = mainWindow.getPosition();
-        mainWindow.setPosition(x, y + moveIncrement);
-    });
-
-    globalShortcut.register('Control+Alt+Left', () => {
-        const [x, y] = mainWindow.getPosition();
-        mainWindow.setPosition(x - moveIncrement, y);
-    });
-
-    globalShortcut.register('Control+Alt+Right', () => {
-        const [x, y] = mainWindow.getPosition();
-        mainWindow.setPosition(x + moveIncrement, y);
-    });
-    // --- End of Move Shortcuts ---
-
-    ipcMain.on('close-client', (event) => {
-        app.quit();
-    });
+    window.create();
+    registerShortcuts();
 
     try {
         console.log('[Main Process] Attempting to start server automatically...');
         const serverUrl = await server.start();
 
         console.log(`[Main Process] Server started. Loading URL: ${serverUrl}`);
-        mainWindow.loadURL(serverUrl);
+        window.loadURL(serverUrl);
     } catch (error) {
         console.error('[Main Process] CRITICAL: Failed to start server:', error);
         app.quit();
@@ -107,6 +43,12 @@ async function initialize() {
 
 app.on('ready', initialize);
 
+app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+        initialize();
+    }
+});
+
 app.on('will-quit', () => {
     globalShortcut.unregisterAll();
 });
@@ -114,11 +56,5 @@ app.on('will-quit', () => {
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         app.quit();
-    }
-});
-
-app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-        initialize();
     }
 });

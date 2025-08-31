@@ -27,7 +27,13 @@ function getNextColorShades() {
 const columnsContainer = document.getElementById('columnsContainer');
 const settingsContainer = document.getElementById('settingsContainer');
 const helpContainer = document.getElementById('helpContainer');
+const passthroughTitle = document.getElementById('passthroughTitle');
 const pauseButton = document.getElementById('pauseButton');
+const clearButton = document.getElementById('clearButton');
+const helpButton = document.getElementById('helpButton');
+const settingsButton = document.getElementById('settingsButton');
+const closeButton = document.getElementById('closeButton');
+const allButtons = [clearButton, pauseButton, helpButton, settingsButton, closeButton];
 const serverStatus = document.getElementById('serverStatus');
 const opacitySlider = document.getElementById('opacitySlider');
 
@@ -38,7 +44,6 @@ let socket = null;
 let isWebSocketConnected = false;
 let lastWebSocketMessage = Date.now();
 const WEBSOCKET_RECONNECT_INTERVAL = 5000;
-const MAX_ROWS_PER_COLUMN = 5;
 
 const SERVER_URL = 'localhost:8990';
 
@@ -50,57 +55,58 @@ function formatNumber(num) {
 }
 
 function renderDataList(users) {
-    // Clear the columns container first
     columnsContainer.innerHTML = '';
 
-    const totalDPS = users.reduce((sum, user) => sum + user.total_dps, 0);
-    const totalHPS = users.reduce((sum, user) => sum + user.total_hps, 0);
+    const totalDamageOverall = users.reduce((sum, user) => sum + user.total_damage.total, 0);
+    const totalHealingOverall = users.reduce((sum, user) => sum + user.total_healing.total, 0);
 
     users.sort((a, b) => b.total_dps - a.total_dps);
 
-    users.forEach((user) => {
-        const dpsPercent = totalDPS > 0 ? (user.total_dps / totalDPS) * 100 : 0;
-        const hpsPercent = totalHPS > 0 ? (user.total_hps / totalHPS) * 100 : 0;
-
+    users.forEach((user, index) => {
         if (!userColors[user.id]) {
             userColors[user.id] = getNextColorShades();
         }
         const colors = userColors[user.id];
-
         const item = document.createElement('li');
-        item.className = 'data-item';
-        item.style.setProperty('--color-dps', colors.dps);
-        item.style.setProperty('--color-hps', colors.hps);
-        item.style.setProperty('--color-dps-shadow', colors.dps);
-        item.style.setProperty('--dps-percent', `${dpsPercent}%`);
-        item.style.setProperty('--hps-percent', `${hpsPercent}%`);
 
-        const isUnknown = user.name === '...' || user.name === '未知';
-        const professionDisplay = isUnknown || !user.profession ? '' : `<span class="class">${user.profession}</span>`;
+        item.className = 'data-item';
+        const damagePercent = totalDamageOverall > 0 ? (user.total_damage.total / totalDamageOverall) * 100 : 0;
+        const healingPercent = totalHealingOverall > 0 ? (user.total_healing.total / totalHealingOverall) * 100 : 0;
+
+        const displayName = user.fightPoint ? `${user.name} (${user.fightPoint})` : user.name;
+
+        let classIconHtml = '';
+        const professionString = user.profession ? user.profession.trim() : '';
+        if (professionString) {
+            const mainProfession = professionString.split('(')[0].trim();
+            const iconFileName = mainProfession.toLowerCase().replace(/ /g, '_') + '.png';
+            classIconHtml = `<img src="assets/${iconFileName}" class="class-icon" alt="${mainProfession}" onerror="this.style.display='none'">`;
+        }
+
+        let subBarHtml = '';
+        if (user.total_healing.total > 0 || user.total_hps > 0) {
+            subBarHtml = `
+                <div class="sub-bar">
+                    <div class="hps-bar-fill" style="width: ${healingPercent}%; background-color: ${colors.hps};"></div>
+                    <div class="hps-stats">
+                       ${formatNumber(user.total_healing.total)} (${formatNumber(user.total_hps)} HPS, ${healingPercent.toFixed(1)}%)
+                    </div>
+                </div>
+            `;
+        }
 
         item.innerHTML = `
-            <div class="player-header">
-                <div class="player-info">
-                    <span class="name">${user.fightPoint ? `${user.name} (${user.fightPoint})` : user.name}</span>
-                    ${professionDisplay}
+            <div class="main-bar">
+                <div class="dps-bar-fill" style="width: ${damagePercent}%; background-color: ${colors.dps};"></div>
+                <div class="content">
+                    <span class="rank">${index + 1}.</span>
+                    ${classIconHtml}
+                    <span class="name">${displayName}</span>
+                    <span class="stats">${formatNumber(user.total_damage.total)} (${formatNumber(user.total_dps)} DPS, ${damagePercent.toFixed(1)}%)</span>
                 </div>
             </div>
-            <div class="bars-container">
-                <div class="bar-row dps-bar-row">
-                    <span class="bar-label">Damage:</span>
-                    <span class="bar-value-total">${formatNumber(user.total_damage.total)}</span>
-                    <span class="bar-value-rate">${formatNumber(user.total_dps)} DPS</span>
-                    <div class="bar-fill dps-bar-fill" style="width: ${dpsPercent}%;"></div>
-                </div>
-                <div class="bar-row hps-bar-row">
-                    <span class="bar-label">Healing:</span>
-                    <span class="bar-value-total">${formatNumber(user.total_healing.total)}</span>
-                    <span class="bar-value-rate">${formatNumber(user.total_hps)} HPS</span>
-                    <div class="bar-fill hps-bar-fill" style="width: ${hpsPercent}%;"></div>
-                </div>
-            </div>
+            ${subBarHtml}
         `;
-
         columnsContainer.appendChild(item);
     });
 }
@@ -289,9 +295,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // Listen for the passthrough toggle event from the main process
     window.electronAPI.onTogglePassthrough((isIgnoring) => {
         if (isIgnoring) {
+            allButtons.forEach((button) => {
+                button.classList.add('hidden');
+            });
+            passthroughTitle.classList.remove('hidden');
             columnsContainer.classList.remove('hidden');
             settingsContainer.classList.add('hidden');
             helpContainer.classList.add('hidden');
+        } else {
+            allButtons.forEach((button) => {
+                button.classList.remove('hidden');
+            });
+            passthroughTitle.classList.add('hidden');
         }
     });
 });

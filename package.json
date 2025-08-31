@@ -1,8 +1,8 @@
 {
-    "name": "pso_client",
-    "productName": "pso_client",
-    "version": "2.0.0-alpha",
-    "description": "My Electron application description",
+    "name": "bpsr_pso",
+    "productName": "BPSR PSO",
+    "version": "2.0.0",
+    "description": "Blue Protocol: Star Resonance - Per Second Overlay",
     "main": "src/index.js",
     "scripts": {
         "start": "electron-forge start",
@@ -16,8 +16,8 @@
     "config": {
         "forge": {
             "packagerConfig": {
-                "name": "BPSR-PSO",
-                "icon": "./resources/ico",
+                "name": "BPSR PSO",
+                "icon": "./resources/app.ico",
                 "extraResources": [
                     "./resources/npcap-1.83.exe",
                     "./README.md"
@@ -35,6 +35,9 @@
                 {
                     "name": "@electron-forge/maker-squirrel",
                     "config": {
+                        "setupIcon": "./resources/app.ico",
+                        "loadingGif": "./resources/installer.gif",
+                        "createDesktopShortcut": true,
                         "extraFiles": [
                             "./resources/npcap-1.83.exe",
                             "./README.md"
@@ -46,7 +49,7 @@
     },
     "keywords": [],
     "author": {
-        "name": "Kami ~ BPSR",
+        "name": "Kami from BPSR",
         "email": "Csim6890@gmail.com"
     },
     "license": "MIT",
