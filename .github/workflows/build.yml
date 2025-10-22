@@ -7,138 +7,9 @@ on:
     workflow_dispatch:
 
 jobs:
-    build-if-version-changed:
-        name: Build when package.json version changes
-        runs-on: ubuntu-latest
-        outputs:
-            should_build: ${{ steps.decide.outputs.should_build }}
-            cur_version: ${{ steps.versions.outputs.cur_version }}
-        steps:
-            - name: Checkout repository (full history)
-              uses: actions/checkout@v4
-              with:
-                  fetch-depth: 0
-
-            - name: Get previous commit for this branch
-              id: prev
-              run: |
-                  # Find the previous commit on master (before this push)
-                  PREV_COMMIT=$(git rev-parse HEAD^1 || echo "")
-                  echo "prev_commit=$PREV_COMMIT" >> $GITHUB_OUTPUT
-
-            - name: Read versions
-              id: versions
-              run: |
-                  echo "Current version:"
-                  jq -r .version package.json
-                  PREV=${{ steps.prev.outputs.prev_commit }}
-                  if [ -n "$PREV" ]; then
-                    echo "Previous commit: $PREV"
-                    git show $PREV:package.json > /tmp/package_prev.json || true
-                    if [ -f /tmp/package_prev.json ]; then
-                      echo "Previous version:"
-                      jq -r .version /tmp/package_prev.json
-                      echo "prev_version=$(jq -r .version /tmp/package_prev.json)" >> $GITHUB_OUTPUT
-                    else
-                      echo "prev_version="
-                      echo "prev_version=" >> $GITHUB_OUTPUT
-                    fi
-                  else
-                    echo "No previous commit found (first commit?)"
-                    echo "prev_version=" >> $GITHUB_OUTPUT
-                  fi
-                  echo "cur_version=$(jq -r .version package.json)" >> $GITHUB_OUTPUT
-
-            - name: Decide whether to run build
-              id: decide
-              run: |
-                  PREV="${{ steps.versions.outputs.prev_version }}"
-                  CUR="${{ steps.versions.outputs.cur_version }}"
-                  echo "prev=$PREV cur=$CUR"
-                  if [ "$PREV" = "$CUR" ] && [ -n "$PREV" ]; then
-                    echo "Version unchanged, skipping build."
-                    echo "should_build=false" >> $GITHUB_OUTPUT
-                    exit 0
-                  fi
-                  echo "Version changed or previous missing, will build."
-                  echo "should_build=true" >> $GITHUB_OUTPUT
-
-            - name: Stop job if not needed
-              if: ${{ steps.decide.outputs.should_build == 'false' }}
-              run: |
-                  echo "No version change detected. Skipping remaining build steps."
-
-            - name: Setup Node.js
-              if: ${{ steps.decide.outputs.should_build == 'true' }}
-              uses: actions/setup-node@v4
-              with:
-                  node-version: 22
-                  cache: 'npm'
-
-            - name: Install system packages (libpcap for cap)
-              if: ${{ steps.decide.outputs.should_build == 'true' }}
-              run: |
-                  sudo apt-get update
-                  sudo apt-get install -y libpcap-dev build-essential python3 pkg-config || true
-
-            - name: Install dependencies
-              if: ${{ steps.decide.outputs.should_build == 'true' }}
-              run: npm ci
-
-            - name: Build
-              if: ${{ steps.decide.outputs.should_build == 'true' }}
-              run: npm run make
-
-            - name: Prepare named artifacts (installer + portable)
-              if: ${{ steps.decide.outputs.should_build == 'true' }}
-              run: |
-                  VER=${{ steps.versions.outputs.cur_version }}
-                  SQUIRREL_DIR="out/make/squirrel.windows/x64"
-
-                  echo "Using version: $VER"
-
-                  # Copy/rename the setup exe to a versioned filename if present
-                  if [ -d "$SQUIRREL_DIR" ]; then
-                    for exe in "$SQUIRREL_DIR"/Snowverlay-*-Setup.exe "$SQUIRREL_DIR"/Snowverlay-*.exe; do
-                      if [ -f "$exe" ]; then
-                        echo "Found installer: $exe"
-                        cp "$exe" "$SQUIRREL_DIR/Snowverlay-${VER}-Setup.exe" || true
-                        break
-                      fi
-                    done
-
-                    # Copy/rename nupkg if present
-                    for pkg in "$SQUIRREL_DIR"/*full.nupkg "$SQUIRREL_DIR"/*.nupkg; do
-                      if [ -f "$pkg" ]; then
-                        echo "Found package: $pkg"
-                        cp "$pkg" "$SQUIRREL_DIR/snowverlay-${VER}-full.nupkg" || true
-                        break
-                      fi
-                    done
-                  else
-                    echo "No squirrel output directory ($SQUIRREL_DIR)"
-                  fi
-
-                  # Create a portable zip of the unpacked app with versioned name
-                  if [ -d "out/Snowverlay-win32-x64" ]; then
-                    ZIP_NAME="out/Snowverlay-${VER}-portable.zip"
-                    echo "Creating portable zip: $ZIP_NAME"
-                    # Use zip on Ubuntu runner; ensure it doesn't fail the job if zip not present
-                    if command -v zip >/dev/null 2>&1; then
-                      zip -r "$ZIP_NAME" out/Snowverlay-win32-x64 || true
-                    else
-                      echo "zip not found, attempting to use python to create zip"
-                      python -m zipfile -c "$ZIP_NAME" out/Snowverlay-win32-x64 || true
-                    fi
-                  else
-                    echo "No unpacked out/Snowverlay-win32-x64 directory to zip"
-                  fi
-
     package-windows:
-        name: Package on Windows (Squirrel)
+        name: Build and Package on Windows
         runs-on: windows-latest
-        needs: build-if-version-changed
-        if: ${{ needs.build-if-version-changed.outputs.should_build == 'true' }}
         steps:
             - name: Checkout
               uses: actions/checkout@v4
@@ -148,6 +19,13 @@ jobs:
               with:
                   node-version: 18
 
+            - name: Get version from package.json
+              id: package-version
+              run: |
+                  $ver = (Get-Content package.json | ConvertFrom-Json).version
+                  echo "version=$ver" >> $env:GITHUB_OUTPUT
+                  Write-Host "Current version: $ver"
+
             - name: Install dependencies
               run: npm ci
 
@@ -156,7 +34,7 @@ jobs:
 
             - name: Prepare and upload Windows artifacts
               run: |
-                  $ver = '${{ needs.build-if-version-changed.outputs.cur_version }}'
+                  $ver = '${{ steps.package-version.outputs.version }}'
                   $sdir = 'out\make\squirrel.windows\x64'
                   Write-Host "Using version: $ver"
 
@@ -192,20 +70,20 @@ jobs:
             - name: Upload Setup.exe
               uses: actions/upload-artifact@v4
               with:
-                  name: Snowverlay-${{ needs.build-if-version-changed.outputs.cur_version }}-Setup
-                  path: out/make/squirrel.windows/x64/Snowverlay-${{ needs.build-if-version-changed.outputs.cur_version }}-Setup.exe
+                  name: Snowverlay-${{ steps.package-version.outputs.version }}-Setup
+                  path: out/make/squirrel.windows/x64/Snowverlay-${{ steps.package-version.outputs.version }}-Setup.exe
                   if-no-files-found: warn
 
             - name: Upload nupkg
               uses: actions/upload-artifact@v4
               with:
-                  name: Snowverlay-${{ needs.build-if-version-changed.outputs.cur_version }}-nupkg
-                  path: out/make/squirrel.windows/x64/snowverlay-${{ needs.build-if-version-changed.outputs.cur_version }}-full.nupkg
+                  name: Snowverlay-${{ steps.package-version.outputs.version }}-nupkg
+                  path: out/make/squirrel.windows/x64/snowverlay-${{ steps.package-version.outputs.version }}-full.nupkg
                   if-no-files-found: warn
 
             - name: Upload portable zip
               uses: actions/upload-artifact@v4
               with:
-                  name: Snowverlay-${{ needs.build-if-version-changed.outputs.cur_version }}-portable
-                  path: out/Snowverlay-${{ needs.build-if-version-changed.outputs.cur_version }}-portable.zip
+                  name: Snowverlay-${{ steps.package-version.outputs.version }}-portable
+                  path: out/Snowverlay-${{ steps.package-version.outputs.version }}-portable.zip
                   if-no-files-found: warn
