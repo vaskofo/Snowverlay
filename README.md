@@ -5,6 +5,11 @@
 Snowverlay - DPS Meter/Parser for Blue Protocol Star Resonance
 Provides a useful GUI to track DPS / HPS for nearby players with a simple skill breakdown per player
 
+## Virus Disclaimer
+
+Windows defender or even the browser might consider the release binary a virus likely due to the fact that the app captures network packets.
+This is a false positive which can be verified by checking the source code, or building it yourself with the instructions below.
+
 ## About the Project
 
 This is a standalone application and does not interface with BPSR or modify any of its files. It analyzes packet while in transit.
@@ -21,7 +26,7 @@ You'll need to have the following software installed:
 - **npm**: Comes bundled with Node.js.
 - **Npcap**: The installer is located in the `/resources` folder of this repository.
 
-### Installation
+### Installation/Build Instructions
 
 1.  **Clone the repository:**
 
@@ -44,6 +49,18 @@ You'll need to have the following software installed:
     ```bash
     npm install
     ```
+
+5. **Run the application in development mode:**
+    ```bash
+    npm start
+    ```
+
+6. **Optionally, build the application:**
+    ```bash
+    npm run make
+    ```
+
+    The built application can be found in the `out/make/Snowverlay-win32-x64` folder and the setup in the `out/make/squirrel.windows` folder.
 
 ## Running the Application
 

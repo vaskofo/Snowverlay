@@ -2,7 +2,7 @@
 
 ## [2.3.0] - 2025-10-22
 
-### ✨ Added
+### Added
 
 - **Project Renamed to Snowverlay**: The project is now called Snowverlay!
 - **Skill Details View**: Click any player to see a full breakdown of their skills, including damage, DPS contribution, cast count, and casts per second (CPS).
@@ -17,7 +17,7 @@
     - **Clear DPS Shortcut**: Added a `Ctrl+Alt+C` hotkey to clear the current session.
 - **Auto-clear**: When changing lines or after 15 seconds of team inactivity, the DPS meter will automatically clear.
 
-### ♻️ Changed
+### Changed
 
 - **UI Overhaul**: Redesigned the UI for a cleaner look and better readability (Inspired by ShinraMeter).
 - **Keyboard Shortcut Updates**:
@@ -29,7 +29,7 @@
     - The UI no longer updates while you're hovering over the meter, making it easier to click on players.
 - **Settings Management**: The app now saves more of your UI and behavior preferences.
 
-### 🐛 Fixed
+### Fixed
 
 - Fixed a crash on startup caused by out-of-order packets.
 - The DPS meter no longer updates in the background when the settings or help menus are open.
