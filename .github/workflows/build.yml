@@ -32,63 +32,31 @@ jobs:
             - name: Make (windows)
               run: npm run make
 
-            - name: Prepare and upload Windows artifacts
+            - name: Prepare portable zip
               run: |
                   $ver = '${{ steps.package-version.outputs.version }}'
-                  $sdir = 'out\make\squirrel.windows\x64'
-                  Write-Host "Using version: $ver"
-
-                  if (Test-Path $sdir) {
-                    # find installer
-                    $exe = Get-ChildItem -Path $sdir -Filter '*Setup.exe' -File -ErrorAction SilentlyContinue | Select-Object -First 1
-                    if (-not $exe) { $exe = Get-ChildItem -Path $sdir -Filter 'Snowverlay-*.exe' -File -ErrorAction SilentlyContinue | Select-Object -First 1 }
-                    if ($exe) {
-                      $targetExe = Join-Path $sdir "Snowverlay-$ver-Setup.exe"
-                      if ($exe.FullName -ne $targetExe) {
-                        Copy-Item $exe.FullName -Destination $targetExe -Force
-                        Write-Host "Copied installer to Snowverlay-$ver-Setup.exe"
-                      } else {
-                        Write-Host "Installer already named correctly: Snowverlay-$ver-Setup.exe"
-                      }
-                    } else { Write-Host 'No installer found' }
-
-                    # find nupkg
-                    $pkg = Get-ChildItem -Path $sdir -Filter '*full.nupkg' -File -ErrorAction SilentlyContinue | Select-Object -First 1
-                    if (-not $pkg) { $pkg = Get-ChildItem -Path $sdir -Filter '*.nupkg' -File -ErrorAction SilentlyContinue | Select-Object -First 1 }
-                    if ($pkg) {
-                      $targetPkg = Join-Path $sdir "snowverlay-$ver-full.nupkg"
-                      if ($pkg.FullName -ne $targetPkg) {
-                        Copy-Item $pkg.FullName -Destination $targetPkg -Force
-                        Write-Host "Copied nupkg to snowverlay-$ver-full.nupkg"
-                      } else {
-                        Write-Host "Package already named correctly: snowverlay-$ver-full.nupkg"
-                      }
-                    } else { Write-Host 'No nupkg found' }
-                  } else {
-                    Write-Host "No squirrel dir: $sdir"
-                  }
-
-                  # create portable zip of unpacked app
                   $appdir = 'out\Snowverlay-win32-x64'
                   if (Test-Path $appdir) {
                     $zip = "out\Snowverlay-$ver-portable.zip"
                     if (Test-Path $zip) { Remove-Item $zip -Force }
                     Compress-Archive -Path (Join-Path $appdir '*') -DestinationPath $zip -Force
-                    Write-Host "Created $zip"
-                  } else { Write-Host 'No unpacked app dir to zip' }
+                    Write-Host "Created portable zip: $zip"
+                  } else {
+                    Write-Host 'No unpacked app directory found'
+                  }
 
             - name: Upload Setup.exe
               uses: actions/upload-artifact@v4
               with:
                   name: Snowverlay-${{ steps.package-version.outputs.version }}-Setup
-                  path: out/make/squirrel.windows/x64/Snowverlay-${{ steps.package-version.outputs.version }}-Setup.exe
+                  path: out/make/squirrel.windows/x64/*Setup.exe
                   if-no-files-found: warn
 
             - name: Upload nupkg
               uses: actions/upload-artifact@v4
               with:
                   name: Snowverlay-${{ steps.package-version.outputs.version }}-nupkg
-                  path: out/make/squirrel.windows/x64/snowverlay-${{ steps.package-version.outputs.version }}-full.nupkg
+                  path: out/make/squirrel.windows/x64/*full.nupkg
                   if-no-files-found: warn
 
             - name: Upload portable zip
