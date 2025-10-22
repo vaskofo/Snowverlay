@@ -63,22 +63,31 @@ jobs:
             - name: Stop job if not needed
               if: ${{ steps.decide.outputs.should_build == 'false' }}
               run: |
-                  echo "No version change detected. Exiting."
-                  exit 0
+                  echo "No version change detected. Skipping remaining build steps."
 
             - name: Setup Node.js
+              if: ${{ steps.decide.outputs.should_build == 'true' }}
               uses: actions/setup-node@v4
               with:
                   node-version: 22
                   cache: 'npm'
 
+            - name: Install system packages (libpcap for cap)
+              if: ${{ steps.decide.outputs.should_build == 'true' }}
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y libpcap-dev build-essential python3 pkg-config || true
+
             - name: Install dependencies
+              if: ${{ steps.decide.outputs.should_build == 'true' }}
               run: npm ci
 
             - name: Build
+              if: ${{ steps.decide.outputs.should_build == 'true' }}
               run: npm run make
 
             - name: Prepare named artifacts (installer + portable)
+              if: ${{ steps.decide.outputs.should_build == 'true' }}
               run: |
                   VER=${{ steps.versions.outputs.cur_version }}
                   SQUIRREL_DIR="out/make/squirrel.windows/x64"
@@ -123,6 +132,7 @@ jobs:
                   fi
 
             - name: Upload installer (Setup.exe)
+              if: ${{ steps.decide.outputs.should_build == 'true' }}
               uses: actions/upload-artifact@v4
               with:
                   name: Snowverlay-${{ steps.versions.outputs.cur_version }}-Setup
@@ -130,6 +140,7 @@ jobs:
                   if-no-files-found: warn
 
             - name: Upload nupkg (Squirrel full package)
+              if: ${{ steps.decide.outputs.should_build == 'true' }}
               uses: actions/upload-artifact@v4
               with:
                   name: Snowverlay-${{ steps.versions.outputs.cur_version }}-nupkg
@@ -137,6 +148,7 @@ jobs:
                   if-no-files-found: warn
 
             - name: Upload portable zip
+              if: ${{ steps.decide.outputs.should_build == 'true' }}
               uses: actions/upload-artifact@v4
               with:
                   name: Snowverlay-${{ steps.versions.outputs.cur_version }}-portable
