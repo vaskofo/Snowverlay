@@ -1,7 +1,7 @@
 {
     "name": "snowverlay",
     "productName": "Snowverlay",
-    "version": "2.3.0",
+    "version": "2.3.1",
     "description": "Snowverlay - DPS Meter/Parser for Blue Protocol Star Resonance",
     "main": "src/index.js",
     "scripts": {
