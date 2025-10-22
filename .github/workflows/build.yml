@@ -43,16 +43,26 @@ jobs:
                     $exe = Get-ChildItem -Path $sdir -Filter '*Setup.exe' -File -ErrorAction SilentlyContinue | Select-Object -First 1
                     if (-not $exe) { $exe = Get-ChildItem -Path $sdir -Filter 'Snowverlay-*.exe' -File -ErrorAction SilentlyContinue | Select-Object -First 1 }
                     if ($exe) {
-                      Copy-Item $exe.FullName -Destination (Join-Path $sdir "Snowverlay-$ver-Setup.exe") -Force
-                      Write-Host "Copied installer to Snowverlay-$ver-Setup.exe"
+                      $targetExe = Join-Path $sdir "Snowverlay-$ver-Setup.exe"
+                      if ($exe.FullName -ne $targetExe) {
+                        Copy-Item $exe.FullName -Destination $targetExe -Force
+                        Write-Host "Copied installer to Snowverlay-$ver-Setup.exe"
+                      } else {
+                        Write-Host "Installer already named correctly: Snowverlay-$ver-Setup.exe"
+                      }
                     } else { Write-Host 'No installer found' }
 
                     # find nupkg
                     $pkg = Get-ChildItem -Path $sdir -Filter '*full.nupkg' -File -ErrorAction SilentlyContinue | Select-Object -First 1
                     if (-not $pkg) { $pkg = Get-ChildItem -Path $sdir -Filter '*.nupkg' -File -ErrorAction SilentlyContinue | Select-Object -First 1 }
                     if ($pkg) {
-                      Copy-Item $pkg.FullName -Destination (Join-Path $sdir "snowverlay-$ver-full.nupkg") -Force
-                      Write-Host "Copied nupkg to snowverlay-$ver-full.nupkg"
+                      $targetPkg = Join-Path $sdir "snowverlay-$ver-full.nupkg"
+                      if ($pkg.FullName -ne $targetPkg) {
+                        Copy-Item $pkg.FullName -Destination $targetPkg -Force
+                        Write-Host "Copied nupkg to snowverlay-$ver-full.nupkg"
+                      } else {
+                        Write-Host "Package already named correctly: snowverlay-$ver-full.nupkg"
+                      }
                     } else { Write-Host 'No nupkg found' }
                   } else {
                     Write-Host "No squirrel dir: $sdir"
