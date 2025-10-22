@@ -202,7 +202,9 @@ export class PacketInterceptor {
                                     // Do NOT skip this packet: start assembling from this seq
                                     tcp_next_seq = seqno;
                                     clearDataOnServerChange();
-                                    logger.info('Got Scene Server Address: ' + src_server + '. Previous: ' + old_server);
+                                    logger.info(
+                                        'Got Scene Server Address: ' + src_server + '. Previous: ' + old_server
+                                    );
                                     try {
                                         socket.emit('server_found', { src_server, timestamp: Date.now() });
                                     } catch (e) {

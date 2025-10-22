@@ -279,7 +279,7 @@ function renderDataList(users) {
                            ${formatNumber(user.total_healing.total)} (${formatNumber(user.total_hps)} HPS, ${healingPercent.toFixed(1)}%)
                         </div>
                     </div>
-                `
+                `;
             }
         } else {
             // When HPS bar is hidden, show a compact HPS text to the left of the DPS stats
