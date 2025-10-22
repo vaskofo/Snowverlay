@@ -10,6 +10,9 @@ jobs:
     build-if-version-changed:
         name: Build when package.json version changes
         runs-on: ubuntu-latest
+        outputs:
+            should_build: ${{ steps.decide.outputs.should_build }}
+            cur_version: ${{ steps.versions.outputs.cur_version }}
         steps:
             - name: Checkout repository (full history)
               uses: actions/checkout@v4
@@ -131,26 +134,78 @@ jobs:
                     echo "No unpacked out/Snowverlay-win32-x64 directory to zip"
                   fi
 
-            - name: Upload installer (Setup.exe)
-              if: ${{ steps.decide.outputs.should_build == 'true' }}
+    package-windows:
+        name: Package on Windows (Squirrel)
+        runs-on: windows-latest
+        needs: build-if-version-changed
+        if: ${{ needs.build-if-version-changed.outputs.should_build == 'true' }}
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 18
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Make (windows)
+              run: npm run make
+
+            - name: Prepare and upload Windows artifacts
+              run: |
+                  $ver = '${{ needs.build-if-version-changed.outputs.cur_version }}'
+                  $sdir = 'out\make\squirrel.windows\x64'
+                  Write-Host "Using version: $ver"
+
+                  if (Test-Path $sdir) {
+                    # find installer
+                    $exe = Get-ChildItem -Path $sdir -Filter '*Setup.exe' -File -ErrorAction SilentlyContinue | Select-Object -First 1
+                    if (-not $exe) { $exe = Get-ChildItem -Path $sdir -Filter 'Snowverlay-*.exe' -File -ErrorAction SilentlyContinue | Select-Object -First 1 }
+                    if ($exe) {
+                      Copy-Item $exe.FullName -Destination (Join-Path $sdir "Snowverlay-$ver-Setup.exe") -Force
+                      Write-Host "Copied installer to Snowverlay-$ver-Setup.exe"
+                    } else { Write-Host 'No installer found' }
+
+                    # find nupkg
+                    $pkg = Get-ChildItem -Path $sdir -Filter '*full.nupkg' -File -ErrorAction SilentlyContinue | Select-Object -First 1
+                    if (-not $pkg) { $pkg = Get-ChildItem -Path $sdir -Filter '*.nupkg' -File -ErrorAction SilentlyContinue | Select-Object -First 1 }
+                    if ($pkg) {
+                      Copy-Item $pkg.FullName -Destination (Join-Path $sdir "snowverlay-$ver-full.nupkg") -Force
+                      Write-Host "Copied nupkg to snowverlay-$ver-full.nupkg"
+                    } else { Write-Host 'No nupkg found' }
+                  } else {
+                    Write-Host "No squirrel dir: $sdir"
+                  }
+
+                  # create portable zip of unpacked app
+                  $appdir = 'out\Snowverlay-win32-x64'
+                  if (Test-Path $appdir) {
+                    $zip = "out\Snowverlay-$ver-portable.zip"
+                    if (Test-Path $zip) { Remove-Item $zip -Force }
+                    Compress-Archive -Path (Join-Path $appdir '*') -DestinationPath $zip -Force
+                    Write-Host "Created $zip"
+                  } else { Write-Host 'No unpacked app dir to zip' }
+
+            - name: Upload Setup.exe
               uses: actions/upload-artifact@v4
               with:
-                  name: Snowverlay-${{ steps.versions.outputs.cur_version }}-Setup
-                  path: out/make/squirrel.windows/x64/Snowverlay-${{ steps.versions.outputs.cur_version }}-Setup.exe
+                  name: Snowverlay-${{ needs.build-if-version-changed.outputs.cur_version }}-Setup
+                  path: out/make/squirrel.windows/x64/Snowverlay-${{ needs.build-if-version-changed.outputs.cur_version }}-Setup.exe
                   if-no-files-found: warn
 
-            - name: Upload nupkg (Squirrel full package)
-              if: ${{ steps.decide.outputs.should_build == 'true' }}
+            - name: Upload nupkg
               uses: actions/upload-artifact@v4
               with:
-                  name: Snowverlay-${{ steps.versions.outputs.cur_version }}-nupkg
-                  path: out/make/squirrel.windows/x64/snowverlay-${{ steps.versions.outputs.cur_version }}-full.nupkg
+                  name: Snowverlay-${{ needs.build-if-version-changed.outputs.cur_version }}-nupkg
+                  path: out/make/squirrel.windows/x64/snowverlay-${{ needs.build-if-version-changed.outputs.cur_version }}-full.nupkg
                   if-no-files-found: warn
 
             - name: Upload portable zip
-              if: ${{ steps.decide.outputs.should_build == 'true' }}
               uses: actions/upload-artifact@v4
               with:
-                  name: Snowverlay-${{ steps.versions.outputs.cur_version }}-portable
-                  path: out/Snowverlay-${{ steps.versions.outputs.cur_version }}-portable.zip
+                  name: Snowverlay-${{ needs.build-if-version-changed.outputs.cur_version }}-portable
+                  path: out/Snowverlay-${{ needs.build-if-version-changed.outputs.cur_version }}-portable.zip
                   if-no-files-found: warn
