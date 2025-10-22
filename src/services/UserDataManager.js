@@ -7,7 +7,7 @@ import fsPromises from 'fs/promises';
 import path from 'path';
 
 class UserDataManager {
-    constructor(logger) {
+    constructor() {
         this.users = new Map();
         this.userCache = new Map();
         this.cacheFilePath = './users.json';
@@ -28,24 +28,35 @@ class UserDataManager {
             maxHp: new Map(),
         };
 
-        // 自动保存
         this.lastAutoSaveTime = 0;
         this.lastLogTime = 0;
+        // Group activity clock: paused when no one deals DPS, resumes when any DPS occurs
+        this.groupStartTimeMs = Date.now();
+        this.groupEffectiveElapsedMs = 0; // accumulates only while group considered "active"
+        this.lastGroupActiveAtMs = 0; // last time any DPS occurred
+        this._lastGroupTickMs = Date.now();
+        this.inactivityGraceMs = 5000; // matches frontend INACTIVITY_GRACE_MS
         setInterval(() => {
             if (this.lastLogTime < this.lastAutoSaveTime) return;
             this.lastAutoSaveTime = Date.now();
             this.saveAllUserData();
         }, 10 * 1000);
 
-        // New: Interval to clean up inactive users every 30 seconds
         setInterval(() => {
             this.cleanUpInactiveUsers();
         }, 30 * 1000);
+
+        this.timeoutCheckInterval = setInterval(() => {
+            try {
+                this.checkTimeoutClear();
+            } catch (error) {
+                logger.warn('Timeout clear check failed: ' + error.message);
+            }
+        }, 1000);
     }
 
-    // New: Method to remove users who have not been updated in 60 seconds
     cleanUpInactiveUsers() {
-        const inactiveThreshold = 60 * 1000; // 1 minute
+        const inactiveThreshold = 60 * 1000;
         const currentTime = Date.now();
 
         for (const [uid, user] of this.users.entries()) {
@@ -141,7 +152,10 @@ class UserDataManager {
         if (config.IS_PAUSED) return;
         if (config.GLOBAL_SETTINGS.onlyRecordEliteDummy && targetUid !== 75) return;
         this.checkTimeoutClear();
+        // Mark group as active (DPS happened now)
+        this.lastGroupActiveAtMs = Date.now();
         const user = this.getUser(uid);
+        // logger.info(`User ${uid} used skill ${skillId} dealing ${damage} ${element} damage${isCrit ? ' (crit)' : ''}${isLucky ? ' (lucky)' : ''}${isCauseLucky ? ' (cause lucky)' : ''}${hpLessenValue ? `, HP lessen value: ${hpLessenValue}` : ''}`);
         user.addDamage(skillId, element, damage, isCrit, isLucky, isCauseLucky, hpLessenValue);
     }
 
@@ -161,8 +175,21 @@ class UserDataManager {
         user.addTakenDamage(damage, isDead);
     }
 
+    addMitigatedDamage(uid, mitigatedDamage) {
+        if (config.IS_PAUSED) return;
+        this.checkTimeoutClear();
+        const user = this.getUser(uid);
+        user.addMitigatedDamage(mitigatedDamage);
+    }
+
     async addLog(log) {
         if (config.IS_PAUSED) return;
+
+        // If debug logs are disabled, skip persistent logging to disk.
+        if (!config.ENABLE_DEBUG_LOGS) {
+            this.lastLogTime = Date.now();
+            return;
+        }
 
         const logDir = path.join('./logs', String(this.startTime));
         const logFile = path.join(logDir, 'fight.log');
@@ -247,6 +274,16 @@ class UserDataManager {
     }
 
     updateAllRealtimeDps() {
+        // Advance the shared group-effective clock only when we've had DPS within the grace window
+        const now = Date.now();
+        const delta = Math.max(0, now - (this._lastGroupTickMs || now));
+        if (delta > 0) {
+            if (this.lastGroupActiveAtMs && now - this.lastGroupActiveAtMs <= this.inactivityGraceMs) {
+                this.groupEffectiveElapsedMs += delta;
+            }
+        }
+        this._lastGroupTickMs = now;
+
         for (const user of this.users.values()) {
             user.updateRealtimeDps();
         }
@@ -266,8 +303,16 @@ class UserDataManager {
 
     getAllUsersData() {
         const result = {};
+        const effectiveSeconds = this.groupEffectiveElapsedMs > 0 ? this.groupEffectiveElapsedMs / 1000 : 0;
         for (const [uid, user] of this.users.entries()) {
-            result[uid] = user.getSummary();
+            const summary = user.getSummary();
+            // Preserve personal DPS based on personal activity window, but override total_dps
+            // to use the shared group-effective elapsed time so rows update on resume.
+            const totalDamage = summary?.total_damage?.total || 0;
+            const groupDps = effectiveSeconds > 0 ? totalDamage / effectiveSeconds : 0;
+            summary.personal_total_dps = summary.total_dps; // keep original for reference
+            summary.total_dps = groupDps;
+            result[uid] = summary;
         }
         return result;
     }
@@ -301,14 +346,46 @@ class UserDataManager {
         this.enemyCache.maxHp.clear();
     }
 
-    clearAll() {
-        const usersToSave = this.users;
-        const saveStartTime = this.startTime;
-        this.users = new Map();
-        this.startTime = Date.now();
-        this.lastAutoSaveTime = 0;
-        this.lastLogTime = 0;
-        this.saveAllUserData(usersToSave, saveStartTime);
+    clearAll(reason = 'manual') {
+        try {
+            const usersToSave = this.users;
+            const saveStartTime = this.startTime;
+
+            // Reset runtime state
+            this.users = new Map();
+            this.hpCache.clear();
+            this.refreshEnemyCache();
+
+            this.startTime = Date.now();
+            this.lastAutoSaveTime = 0;
+            this.lastLogTime = 0;
+            // Reset group activity tracking
+            this.groupStartTimeMs = Date.now();
+            this.groupEffectiveElapsedMs = 0;
+            this.lastGroupActiveAtMs = 0;
+            this._lastGroupTickMs = Date.now();
+
+            // Persist previous session data asynchronously but do not block
+            this.saveAllUserData(usersToSave, saveStartTime).catch((e) => {
+                logger.warn('Failed saving user data during clearAll: ' + e.message);
+            });
+
+            // Immediately notify UI clients that data is cleared
+            const payload = { code: 0, user: {}, reset: true, reason };
+            try {
+                socket.emit('data', payload);
+            } catch (e) {
+                logger.debug('Failed to emit cleared user data to socket: ' + e.message);
+            }
+
+            try {
+                socket.emit('reset', { reason, timestamp: Date.now() });
+            } catch (e) {
+                logger.debug('Failed to emit reset event to socket: ' + e.message);
+            }
+        } catch (e) {
+            logger.warn('clearAll failed: ' + e.message);
+        }
     }
 
     getUserIds() {
@@ -344,20 +421,25 @@ class UserDataManager {
                 userDatas.set(uid, userData);
             }
 
-            try {
-                await fsPromises.access(usersDir);
-            } catch (error) {
-                await fsPromises.mkdir(usersDir, { recursive: true });
-            }
+            // Respect global debug flag: only persist session logs when enabled
+            if (config.ENABLE_DEBUG_LOGS) {
+                try {
+                    await fsPromises.access(usersDir);
+                } catch (error) {
+                    await fsPromises.mkdir(usersDir, { recursive: true });
+                }
 
-            const allUserDataPath = path.join(logDir, 'allUserData.json');
-            await fsPromises.writeFile(allUserDataPath, JSON.stringify(allUsersData, null, 2), 'utf8');
-            for (const [uid, userData] of userDatas.entries()) {
-                const userDataPath = path.join(usersDir, `${uid}.json`);
-                await fsPromises.writeFile(userDataPath, JSON.stringify(userData, null, 2), 'utf8');
+                const allUserDataPath = path.join(logDir, 'allUserData.json');
+                await fsPromises.writeFile(allUserDataPath, JSON.stringify(allUsersData, null, 2), 'utf8');
+                for (const [uid, userData] of userDatas.entries()) {
+                    const userDataPath = path.join(usersDir, `${uid}.json`);
+                    await fsPromises.writeFile(userDataPath, JSON.stringify(userData, null, 2), 'utf8');
+                }
+                await fsPromises.writeFile(path.join(logDir, 'summary.json'), JSON.stringify(summary, null, 2), 'utf8');
+                logger.debug(`Saved data for ${summary.userCount} users to ${logDir}`);
+            } else {
+                logger.debug('Debug logs disabled - skipping saveAllUserData writes');
             }
-            await fsPromises.writeFile(path.join(logDir, 'summary.json'), JSON.stringify(summary, null, 2), 'utf8');
-            logger.debug(`Saved data for ${summary.userCount} users to ${logDir}`);
         } catch (error) {
             logger.error('Failed to save all user data:', error);
             throw error;
@@ -368,7 +450,7 @@ class UserDataManager {
         if (!config.GLOBAL_SETTINGS.autoClearOnTimeout || this.lastLogTime === 0 || this.users.size === 0) return;
         const currentTime = Date.now();
         if (this.lastLogTime && currentTime - this.lastLogTime > 15000) {
-            this.clearAll();
+            this.clearAll('timeout');
             logger.info('Timeout reached, statistics cleared!');
         }
     }

@@ -84,7 +84,7 @@ class Window {
             minHeight: 42,
             transparent: true,
             frame: false,
-            title: 'BPSR-PSO',
+            title: 'Snowverlay',
             icon: iconPath,
             webPreferences: {
                 preload: preloadPath,
@@ -97,6 +97,12 @@ class Window {
         this._window.setAlwaysOnTop(true, 'normal');
         this._window.setMovable(true);
         this._window.loadFile(htmlPath);
+
+        this._window.on('resize', () => {
+            if (!this._window) return;
+            const bounds = this._window.getBounds();
+            this._window.webContents.send('window-resized', bounds);
+        });
 
         this._window.on('close', () => this._saveConfig());
         this._window.on('closed', () => (this._window = null));
@@ -115,7 +121,7 @@ class Window {
      */
     getWindow() {
         if (!this._window) {
-            throw 'The window has not been created yet. Call create() first.';
+            throw new Error('The window has not been created yet. Call create() first.');
         }
         return this._window;
     }

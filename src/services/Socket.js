@@ -14,7 +14,7 @@ class Socket {
 
     emit(event, data) {
         if (_io === null || _io === undefined) {
-            throw "io must be initialized" 
+            throw new Error('Socket.io must be initialized before emitting events');
         }
 
         _io.emit(event, data);
@@ -22,10 +22,10 @@ class Socket {
 
     on(event, callback) {
         if (_io === null || _io === undefined) {
-            throw "io must be initialized" 
+            throw new Error('Socket.io must be initialized before registering event listeners');
         }
 
-        _io.on(event, callback)
+        _io.on(event, callback);
     }
 }
 

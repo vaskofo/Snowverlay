@@ -4,56 +4,43 @@ import window from './Window.js';
 const RESIZE_INCREMENT = 20;
 const MOVE_INCREMENT = 20;
 
-/**
- * Registers all global keyboard shortcuts for the application.
- */
 export function registerShortcuts() {
     registerPassthrough();
-    registerResize();
-    registerMove();
     registerMinimize();
+    registerClearDps();
 }
 
-/**
- * Registers the shortcut for toggling mouse event pass-through.
- */
 function registerPassthrough() {
-    globalShortcut.register('Control+`', () => {
+    globalShortcut.register('Control+Alt+`', () => {
         window.togglePassthrough();
     });
 }
 
-/**
- * Registers shortcuts for resizing the window.
- */
-function registerResize() {
-    globalShortcut.register('Control+Up', () => {
+export function registerResize() {
+    globalShortcut.register('Control+Shift+Up', () => {
         const [width, height] = window.getSize();
         const newHeight = Math.max(40, height - RESIZE_INCREMENT);
         window.setSize(width, newHeight);
     });
 
-    globalShortcut.register('Control+Down', () => {
+    globalShortcut.register('Control+Shift+Down', () => {
         const [width, height] = window.getSize();
         window.setSize(width, height + RESIZE_INCREMENT);
     });
 
-    globalShortcut.register('Control+Left', () => {
+    globalShortcut.register('Control+Shift+Left', () => {
         const [width, height] = window.getSize();
         const newWidth = Math.max(280, width - RESIZE_INCREMENT);
         window.setSize(newWidth, height);
     });
 
-    globalShortcut.register('Control+Right', () => {
+    globalShortcut.register('Control+Shift+Right', () => {
         const [width, height] = window.getSize();
         window.setSize(width + RESIZE_INCREMENT, height);
     });
 }
 
-/**
- * Registers shortcuts for moving the window.
- */
-function registerMove() {
+export function registerMove() {
     globalShortcut.register('Control+Alt+Up', () => {
         const [x, y] = window.getPosition();
         window.setPosition(x, y - MOVE_INCREMENT);
@@ -75,11 +62,21 @@ function registerMove() {
     });
 }
 
-/**
- * Registers the shortcut for minimizing/restoring the window height.
- */
 function registerMinimize() {
     globalShortcut.register('Control+Alt+Z', () => {
         window.minimizeOrRestore();
+    });
+}
+
+function registerClearDps() {
+    globalShortcut.register('Control+Alt+C', () => {
+        try {
+            const win = window.getWindow();
+            if (win && win.webContents) {
+                win.webContents.send('clear-dps');
+            }
+        } catch (err) {
+            console.error('Failed to send clear-dps to renderer', err);
+        }
     });
 }

@@ -1,0 +1,17 @@
+{
+  "autoClearOnServerChange": true,
+  "autoClearOnTimeout": false,
+  "onlyRecordEliteDummy": false,
+  "hideHpsBar": true,
+  "hideMitigationBar": false,
+  "windowHeightMode": "static",
+  "autoPlayerCount": 8,
+  "staticHeightDps": 263,
+  "staticHeightSettings": 442,
+  "staticHeightSkills": 300,
+  "dateTimeFormat": "DD/MM/YYYY HH:mm:ss",
+  "useClassColors": true,
+  "backgroundOpacity": 0.5,
+  "enableGlobalShortcuts": false,
+  "fontSize": "small"
+}

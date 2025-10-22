@@ -64,6 +64,7 @@ export class UserData {
         this.damageStats = new StatisticData(this, '伤害');
         this.healingStats = new StatisticData(this, '治疗');
         this.takenDamage = 0; // 承伤
+        this.mitigatedDamage = 0; // In testing
         this.deadCount = 0; // 死亡次数
         this.profession = '...';
         this.skillUsage = new Map(); // 技能使用情况
@@ -139,6 +140,14 @@ export class UserData {
         }
     }
 
+    /** 添加减伤记录 (shield/barrier mitigation)
+     * @param {number} mitigatedDamage - 被护盾吸收的伤害值
+     * */
+    addMitigatedDamage(mitigatedDamage) {
+        this._touch();
+        this.mitigatedDamage += mitigatedDamage;
+    }
+
     /** 更新实时DPS和HPS 计算过去1秒内的总伤害和治疗 */
     updateRealtimeDps() {
         this.damageStats.updateRealtimeStats();
@@ -178,6 +187,7 @@ export class UserData {
             total_hps: this.getTotalHps(),
             total_healing: { ...this.healingStats.stats },
             taken_damage: this.takenDamage,
+            mitigated_damage: this.mitigatedDamage,
             profession: this.profession + (this.subProfession ? ` ${this.subProfession}` : ''),
             name: this.name,
             fightPoint: this.fightPoint,
@@ -191,7 +201,6 @@ export class UserData {
     getSkillSummary() {
         const skills = {};
         for (const [skillId, stat] of this.skillUsage) {
-            const total = stat.stats.normal + stat.stats.critical + stat.stats.lucky + stat.stats.crit_lucky;
             const critCount = stat.count.critical;
             const luckyCount = stat.count.lucky;
             const critRate = stat.count.total > 0 ? critCount / stat.count.total : 0;
@@ -199,12 +208,24 @@ export class UserData {
             const name = skillConfig[skillId % 1000000000] ?? skillId % 1000000000;
             const elementype = stat.element;
 
+            let castsPerSecond = 0;
+            const startTime = stat.timeRange?.[0] || Date.now();
+            if (stat.timeRange?.[0]) {
+                const now = Date.now();
+                const end = stat.timeRange[1] || now;
+                const durationSec = Math.max(0.001, (end - stat.timeRange[0]) / 1000);
+                castsPerSecond = stat.count.total / durationSec;
+            }
+
             skills[skillId] = {
                 displayName: name,
                 type: stat.type,
                 elementype: elementype,
                 totalDamage: stat.stats.total,
                 totalCount: stat.count.total,
+                totalCasts: stat.count.total,
+                castsPerSecond: castsPerSecond,
+                startTime: startTime, // Add start time for CPS calculation
                 critCount: stat.count.critical,
                 luckyCount: stat.count.lucky,
                 critRate: critRate,
@@ -265,6 +286,7 @@ export class UserData {
         this.damageStats.reset();
         this.healingStats.reset();
         this.takenDamage = 0;
+        this.mitigatedDamage = 0;
         this.skillUsage.clear();
         this.fightPoint = 0;
         this._touch();

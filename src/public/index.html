@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>BPSR-PSO</title>
+        <title>Snowverlay</title>
         <link
             href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&display=swap"
             rel="stylesheet"
@@ -17,7 +17,10 @@
                 <div class="controls">
                     <div class="title-container">
                         <div id="serverStatus" class="status-indicator"></div>
-                        <span class="app-title">BPSR-PSO</span>
+                        <div class="titleContainer">
+                            <span class="app-title">Snowverlay</span>
+                            <span id="appVersion" class="app-version"></span>
+                        </div>
                     </div>
                     <div class="button-group">
                         <button id="clearButton" onclick="clearData()" title="Clear Data">Clear</button>
@@ -28,12 +31,124 @@
                         <span id="passthroughTitle" class="passthrough-title hidden"> Passthrough Enabled </span>
                     </div>
                 </div>
-                <div id="columnsContainer" class="columns-container"></div>
+                <div id="statusOverlay" class="status-overlay hidden">
+                    <div class="status-overlay-content">
+                        <span id="statusOverlayText"></span>
+                        <span id="statusOverlayTimer" class="waiting-duration hidden"></span>
+                    </div>
+                </div>
+                <div id="columnsContainer" class="columns-container">
+                    <div id="totalsHeader" class="totals-header hidden" title="Group totals and elapsed time">
+                        <div class="totals-left">
+                            <span class="totals-label">Total</span>
+                            <span id="totalDamage" class="totals-value">0</span>
+                            <span class="sep">|</span>
+                            <span id="totalDps" class="totals-value">0 DPS</span>
+                        </div>
+                        <div class="totals-right">
+                            <span class="totals-label">Duration</span>
+                            <span id="dpsDuration" class="totals-value">0:00</span>
+                        </div>
+                    </div>
+                    <div id="dpsList" class="dps-list"></div>
+                </div>
+                <div id="skillDetailsContainer" class="skill-details-container hidden">
+                    <div class="skill-details-header">
+                        <button id="backButton" onclick="backToMain()" class="back-button">← Back</button>
+                        <div class="skill-details-user-info">
+                            <span id="skillDetailsUserName" class="skill-details-name"></span>
+                            <span id="skillDetailsUserStats" class="skill-details-stats"></span>
+                        </div>
+                    </div>
+                    <div id="skillDetailsList" class="skill-details-list"></div>
+                </div>
                 <div id="settingsContainer" class="settings-container hidden">
                     <div class="settings-option">
                         <label for="opacitySlider">Background Opacity</label>
                         <input type="range" id="opacitySlider" min="0" max="1" step="0.05" value="0.05" />
                     </div>
+                    <div class="settings-option">
+                        <label for="classColorToggle">Class-based colors</label>
+                        <input type="checkbox" id="classColorToggle" checked />
+                        <div style="font-size: 11px; color: #ccc; margin-top: 4px">
+                            When enabled, user bars are colored by class (DPS=Red, Tank=Blue, Healer=Green). Disable for
+                            per-user colors.
+                        </div>
+                    </div>
+                    <div class="settings-option">
+                        <label for="globalShortcutsToggle">Enable global move/resize shortcuts</label>
+                        <input type="checkbox" id="globalShortcutsToggle" />
+                        <div style="font-size: 11px; color: #ccc; margin-top: 4px">
+                            When enabled, use Right Ctrl + Arrow Keys to move/resize window even when not focused.
+                        </div>
+                    </div>
+                    <!-- Max Players slider removed per request -->
+                    <div class="settings-option">
+                        <label for="hideHpsToggle">Hide HPS bar</label>
+                        <input type="checkbox" id="hideHpsToggle" checked />
+                        <div style="font-size: 11px; color: #ccc; margin-top: 4px">
+                            When enabled, the healing (HPS) sub-bar will be hidden. This is useful for compact views.
+                        </div>
+                    </div>
+                    <!-- <div class="settings-option">
+                        <label for="hideMitigationToggle">Hide mitigation bar</label>
+                        <input type="checkbox" id="hideMitigationToggle" />
+                        <div style="font-size: 11px; color: #ccc; margin-top: 4px">
+                            When enabled, the mitigation bar (absorbed damage) will be hidden and shown inline instead.
+                        </div>
+                    </div> -->
+                    <div class="settings-option">
+                        <label for="dateTimeFormatSelect">Date / Time format</label>
+                        <select id="dateTimeFormatSelect">
+                            <option value="YYYY-MM-DD HH:mm:ss">YYYY-MM-DD HH:mm:ss (24h)</option>
+                            <option value="DD/MM/YYYY HH:mm:ss">DD/MM/YYYY HH:mm:ss (24h)</option>
+                            <option value="MM/DD/YYYY hh:mm:ss A">MM/DD/YYYY hh:mm:ss A (12h)</option>
+                            <option value="MMM DD, YYYY HH:mm:ss">MMM DD, YYYY HH:mm:ss (e.g. Oct 18, 2025)</option>
+                            <option value="ISO">ISO 8601</option>
+                        </select>
+                        <div class="helper-text" style="font-size: 11px; color: #ccc; margin-top: 4px">
+                            Choose the date/time display format shown in the footer.
+                        </div>
+                    </div>
+                    <div class="settings-option">
+                        <label for="fontSizeSelect">Font size</label>
+                        <select id="fontSizeSelect">
+                            <option value="small">Small</option>
+                            <option value="normal">Normal</option>
+                            <option value="large">Large</option>
+                        </select>
+                        <div class="helper-text" style="font-size: 11px; color: #ccc; margin-top: 4px">
+                            Scales the UI for bigger screens without changing tuned proportions.
+                        </div>
+                    </div>
+                    <!--
+                    <div class="settings-option">
+                        <label>Window height mode</label>
+                        <div class="settings-radio-group">
+                            <label class="radio-option">
+                                <input
+                                    type="radio"
+                                    name="windowHeightMode"
+                                    id="windowHeightModeStatic"
+                                    value="static"
+                                    checked
+                                />
+                                <span>Static height</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="windowHeightMode" id="windowHeightModeAuto" value="auto" />
+                                <span>Auto-fit players</span>
+                            </label>
+                        </div>
+                        <div id="autoHeightControls" class="auto-height-controls hidden">
+                            <label for="autoPlayerCount">Players to fit</label>
+                            <input type="number" id="autoPlayerCount" min="1" max="24" step="1" value="8" />
+                            <div class="helper-text">
+                                Window height adjusts to fit up to this many player rows on the DPS view.
+                            </div>
+                        </div>
+                    </div>
+                    -->
                 </div>
                 <div id="helpContainer" class="help-container hidden">
                     <h2>Keyboard Shortcuts</h2>
@@ -41,26 +156,37 @@
                         <li>
                             <strong>Toggle Mouse Pass-through:</strong>
                             <br />
-                            Press <code>Control+`</code> to allow mouse clicks to "pass through" this window to the
+                            Press <code>Ctrl+Alt+`</code> to allow mouse clicks to "pass through" this window to the
                             applications behind it. Press the key combination again to restore normal mouse interaction.
                         </li>
                         <li>
                             <strong>Minimize Window Content:</strong>
                             <br />
-                            Press <code>Control+Alt+Z</code> to minimize the content section of the application. Press
-                            the key combination again to restore content section size.
+                            Press <code>Ctrl+Alt+Z</code> to minimize the content section of the application. Press the
+                            key combination again to restore content section size.
                         </li>
                         <li>
                             <strong>Resize Window:</strong>
                             <br />
-                            Press <code>Control + Arrow Keys</code> to resize the application window.
+                            Press <code>Ctrl+Shift+Arrow Keys</code> to resize the application window.
                         </li>
                         <li>
                             <strong>Move Window:</strong>
                             <br />
-                            Press <code>Control + Alt + Arrow Keys</code> to move the application window.
+                            Press <code>Ctrl+Alt+Arrow Keys</code> to move the application window.
+                        </li>
+                        <li>
+                            <strong>Clear DPS:</strong>
+                            <br />
+                            Press <code>Ctrl+Alt+C</code> to clear all DPS data.
+                        </li>
+                        <li>
+                            <!-- Removed offensive/irrelevant line -->
                         </li>
                     </ul>
+                </div>
+                <div class="footer">
+                    <span id="currentDateTime" class="current-datetime"></span>
                 </div>
             </div>
         </div>

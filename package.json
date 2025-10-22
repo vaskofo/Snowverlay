@@ -1,8 +1,8 @@
 {
-    "name": "bpsr_pso",
-    "productName": "BPSR PSO",
-    "version": "2.0.1",
-    "description": "Blue Protocol: Star Resonance - Per Second Overlay",
+    "name": "snowverlay",
+    "productName": "Snowverlay",
+    "version": "2.3.0",
+    "description": "Snowverlay - DPS Meter/Parser for Blue Protocol Star Resonance",
     "main": "src/index.js",
     "scripts": {
         "start": "electron-forge start",
@@ -16,7 +16,7 @@
     "config": {
         "forge": {
             "packagerConfig": {
-                "name": "BPSR PSO",
+                "name": "Snowverlay",
                 "icon": "./resources/app.ico",
                 "extraResources": [
                     "./resources/npcap-1.83.exe",
@@ -49,8 +49,8 @@
     },
     "keywords": [],
     "author": {
-        "name": "Kami from BPSR",
-        "email": "Csim6890@gmail.com"
+        "name": "vaskofo",
+        "email": ""
     },
     "license": "MIT",
     "dependencies": {

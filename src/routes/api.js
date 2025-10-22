@@ -3,16 +3,9 @@ import path from 'path';
 import logger from '../services/Logger.js';
 import { promises as fsPromises } from 'fs';
 import userDataManager from '../services/UserDataManager.js';
+import { PacketProcessor } from '../services/PacketProcessor.js';
 
-/**
- * Creates and returns an Express Router instance configured with all API endpoints.
- * @param {object} userDataManager The data manager instance for user data.
- * @param {object} logger The Winston logger instance.
- * @param {boolean} isPaused The state of the statistics being paused.
- * @param {string} SETTINGS_PATH The path to the settings file.
- * @returns {express.Router} An Express Router with all routes defined.
- */
-export function createApiRouter(isPaused, SETTINGS_PATH) {
+export function createApiRouter(isPaused, SETTINGS_PATH, globalSettings = {}) {
     const router = express.Router();
 
     // Middleware to parse JSON requests
@@ -40,7 +33,7 @@ export function createApiRouter(isPaused, SETTINGS_PATH) {
 
     // Clear all statistics
     router.get('/clear', (req, res) => {
-        userDataManager.clearAll();
+        userDataManager.clearAll('manual');
         logger.info('Statistics have been cleared!');
         res.json({
             code: 0,
@@ -212,12 +205,87 @@ export function createApiRouter(isPaused, SETTINGS_PATH) {
         res.json({ code: 0, data: globalSettings });
     });
 
+    // Get current player UID
+    router.get('/current-player', (req, res) => {
+        const currentPlayerUid = PacketProcessor.getCurrentPlayerUid();
+        res.json({
+            code: 0,
+            uid: currentPlayerUid,
+        });
+    });
+
     // Update settings
     router.post('/settings', async (req, res) => {
-        const newSettings = req.body;
-        globalSettings = { ...globalSettings, ...newSettings };
-        await fsPromises.writeFile(SETTINGS_PATH, JSON.stringify(globalSettings, null, 2), 'utf8');
-        res.json({ code: 0, data: globalSettings });
+        try {
+            const newSettings = req.body || {};
+
+            // Basic validation for known settings
+            if (newSettings.hideHpsBar !== undefined) {
+                newSettings.hideHpsBar = !!newSettings.hideHpsBar;
+            }
+            if (newSettings.hideMitigationBar !== undefined) {
+                newSettings.hideMitigationBar = !!newSettings.hideMitigationBar;
+            }
+            if (newSettings.windowHeightMode !== undefined) {
+                const allowedModes = ['static', 'auto'];
+                if (!allowedModes.includes(newSettings.windowHeightMode)) {
+                    delete newSettings.windowHeightMode;
+                }
+            }
+            if (newSettings.autoPlayerCount !== undefined) {
+                const parsedCount = Number.parseInt(newSettings.autoPlayerCount, 10);
+                if (Number.isNaN(parsedCount)) {
+                    delete newSettings.autoPlayerCount;
+                } else {
+                    const clamped = Math.min(24, Math.max(1, parsedCount));
+                    newSettings.autoPlayerCount = clamped;
+                }
+            }
+
+            const clampInt = (v) => (Number.isFinite(v) ? Math.round(v) : null);
+            if (newSettings.staticHeightDps !== undefined) {
+                const h = clampInt(newSettings.staticHeightDps);
+                if (h === null) delete newSettings.staticHeightDps;
+                else newSettings.staticHeightDps = Math.max(42, h);
+            }
+            if (newSettings.staticHeightSettings !== undefined) {
+                const h = clampInt(newSettings.staticHeightSettings);
+                if (h === null) delete newSettings.staticHeightSettings;
+                else newSettings.staticHeightSettings = Math.max(150, h);
+            }
+            if (newSettings.staticHeightSkills !== undefined) {
+                const h = clampInt(newSettings.staticHeightSkills);
+                if (h === null) delete newSettings.staticHeightSkills;
+                else newSettings.staticHeightSkills = Math.max(150, h);
+            }
+
+            // New simple settings
+            if (newSettings.useClassColors !== undefined) {
+                newSettings.useClassColors = !!newSettings.useClassColors;
+            }
+            if (newSettings.backgroundOpacity !== undefined) {
+                const op = Number.parseFloat(newSettings.backgroundOpacity);
+                if (Number.isFinite(op) && op >= 0 && op <= 1) {
+                    newSettings.backgroundOpacity = op;
+                } else {
+                    delete newSettings.backgroundOpacity;
+                }
+            }
+            if (newSettings.enableGlobalShortcuts !== undefined) {
+                newSettings.enableGlobalShortcuts = !!newSettings.enableGlobalShortcuts;
+            }
+
+            // Merge into provided globalSettings object
+            Object.assign(globalSettings, newSettings);
+
+            // Persist to disk
+            await fsPromises.writeFile(SETTINGS_PATH, JSON.stringify(globalSettings, null, 2), 'utf8');
+
+            res.json({ code: 0, data: globalSettings });
+        } catch (error) {
+            logger.error('Failed to update settings:', error);
+            res.status(500).json({ code: 1, msg: 'Failed to update settings' });
+        }
     });
 
     return router;

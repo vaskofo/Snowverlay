@@ -3,10 +3,13 @@ import Long from 'long';
 import pbjs from 'protobufjs/minimal.js';
 import fs from 'fs';
 import logger from './Logger.js';
+import dungeonLogger from './DungeonLogger.js';
 import { createRequire } from 'module';
 import monsterNames from '../tables/monster_names.json' with { type: 'json' };
 import { BinaryReader } from '../models/BinaryReader.js';
 import userDataManager from './UserDataManager.js';
+import socket from './Socket.js';
+import { config } from '../config.js';
 
 const require = createRequire(import.meta.url);
 const pb = require('../algo/blueprotobuf.js');
@@ -265,7 +268,10 @@ export class PacketProcessor {
             const isHeal = syncDamageInfo.Type === pb.EDamageType.Heal;
             const isDead = syncDamageInfo.IsDead != null ? syncDamageInfo.IsDead : false;
             const isLucky = !!luckyValue;
+            // hpLessenValue: The actual HP reduction on target (may differ from damage due to mitigation/shields/etc)
             const hpLessenValue = syncDamageInfo.HpLessenValue != null ? syncDamageInfo.HpLessenValue : Long.ZERO;
+            const shieldLessenValue =
+                syncDamageInfo.ShieldLessenValue != null ? syncDamageInfo.ShieldLessenValue : Long.ZERO;
             const damageElement = getDamageElement(syncDamageInfo.Property);
             const damageSource = syncDamageInfo.DamageSource ?? 0;
 
@@ -286,6 +292,10 @@ export class PacketProcessor {
                 }
                 if (isDead) {
                     userDataManager.setAttrKV(targetUuid.toNumber(), 'hp', 0);
+                }
+                // Track shield mitigation when player takes damage
+                if (!isHeal && shieldLessenValue.toNumber() > 0) {
+                    userDataManager.addMitigatedDamage(targetUuid.toNumber(), shieldLessenValue.toNumber());
                 }
             } else {
                 if (!isHeal && isAttackerPlayer) {
@@ -352,7 +362,6 @@ export class PacketProcessor {
 
             infoStr += ` TGT: ${targetName}`;
             const dmgLog = `[${actionType}] DS: ${getDamageSource(damageSource)} ${infoStr} ID: ${skillId} VAL: ${damage} HPLSN: ${hpLessenValue} ELEM: ${damageElement.slice(-1)} EXT: ${extra.join('|')}`;
-            //logger.info(dmgLog);
             userDataManager.addLog(dmgLog);
         }
     }
@@ -374,6 +383,15 @@ export class PacketProcessor {
         if (uuid && !currentUserUuid.eq(uuid)) {
             currentUserUuid = uuid;
             logger.info('Got player UUID! UUID: ' + currentUserUuid + ' UID: ' + currentUserUuid.shiftRight(16));
+            try {
+                socket.emit('player_uuid', {
+                    uuid: currentUserUuid.toString(),
+                    uid: currentUserUuid.shiftRight(16).toNumber(),
+                    timestamp: Date.now(),
+                });
+            } catch (e) {
+                logger.debug('Failed to emit player_uuid: ' + e.message);
+            }
         }
         const aoiSyncDelta = aoiSyncToMeDelta.BaseDelta;
         if (!aoiSyncDelta) {
@@ -421,7 +439,9 @@ export class PacketProcessor {
                 userDataManager.setProfession(playerUid, getProfessionNameFromId(professionList.CurProfessionId));
             }
         } catch (err) {
-            fs.writeFileSync('./SyncContainerData.dat', payloadBuffer);
+            if (config.ENABLE_DEBUG_LOGS) {
+                fs.writeFileSync('./SyncContainerData.dat', payloadBuffer);
+            }
             logger.warn(
                 `Failed to decode SyncContainerData for player ${currentUserUuid.shiftRight(16)}. Please report to developer`
             );
@@ -630,6 +650,9 @@ export class PacketProcessor {
                     }
                     case pb.EEntityType.EntChar: {
                         this._processPlayerAttrs(entityUid, attrCollection.Attrs);
+
+                        const playerName = userDataManager.getUser(entityUid)?.name || 'Unknown';
+                        dungeonLogger.info(`Player appeared: ${playerName} (UID: ${entityUid})`);
                         break;
                     }
                 }
@@ -805,5 +828,12 @@ export class PacketProcessor {
         } catch (e) {
             // A try-catch block here is helpful for parsing issues
         }
+    }
+
+    static getCurrentPlayerUid() {
+        if (currentUserUuid.isZero()) {
+            return null;
+        }
+        return currentUserUuid.shiftRight(16).toNumber();
     }
 }

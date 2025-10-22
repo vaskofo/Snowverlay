@@ -10,18 +10,13 @@ import { PacketInterceptor } from './services/PacketInterceptor.js';
 import userDataManager from './services/UserDataManager.js';
 import socket from './services/Socket.js';
 import logger from './services/Logger.js';
-
-import skillConfig from './tables/skill_names.json' with { type: 'json' };
+import { config } from './config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const SETTINGS_PATH = path.join(__dirname, 'settings.json');
 let isPaused = false;
-let globalSettings = {
-    autoClearOnServerChange: true,
-    autoClearOnTimeout: false,
-    onlyRecordEliteDummy: false,
-};
+const globalSettings = config.GLOBAL_SETTINGS;
 
 class Server {
     start = async () =>
@@ -36,7 +31,7 @@ class Server {
                 app.use(cors());
                 app.use(express.static(path.join(__dirname, 'public')));
 
-                const apiRouter = createApiRouter(isPaused, SETTINGS_PATH);
+                const apiRouter = createApiRouter(isPaused, SETTINGS_PATH, globalSettings);
                 app.use('/api', apiRouter);
 
                 this.server = http.createServer(app);
@@ -108,7 +103,8 @@ class Server {
     async _loadGlobalSettings() {
         try {
             const data = await fsPromises.readFile(SETTINGS_PATH, 'utf8');
-            globalSettings = { ...globalSettings, ...JSON.parse(data) };
+            const loaded = JSON.parse(data);
+            Object.assign(globalSettings, loaded);
         } catch (e) {
             if (e.code !== 'ENOENT') {
                 logger.error('Failed to load settings:', e);

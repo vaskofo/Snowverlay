@@ -2,10 +2,11 @@ import cap from 'cap';
 import zlib from 'zlib';
 import logger from './Logger.js';
 import userDataManager from './UserDataManager.js';
+import socket from './Socket.js';
+import { config } from '../config.js';
 
 import { PacketProcessor } from './PacketProcessor.js';
 import { Lock } from '../models/Lock.js';
-import { Readable } from 'stream';
 import { findDefaultNetworkDevice } from './NetInterfaceService.js';
 
 const Cap = cap.Cap;
@@ -13,16 +14,15 @@ const decoders = cap.decoders;
 const PROTOCOL = decoders.PROTOCOL;
 
 const clearDataOnServerChange = () => {
+    // Always refresh enemy cache and clear user data when the setting is enabled.
     userDataManager.refreshEnemyCache();
-    if (
-        !globalSettings.autoClearOnServerChange ||
-        userDataManager.lastLogTime === 0 ||
-        userDataManager.users.size === 0
-    ) {
-        return;
+    if (!config.GLOBAL_SETTINGS.autoClearOnServerChange) return;
+    try {
+        userDataManager.clearAll('server-change');
+        logger.info('Server changed, statistics cleared!');
+    } catch (e) {
+        logger.warn('Failed to clear data on server change: ' + e.message);
     }
-    userDataManager.clearAll();
-    logger.info('Server changed, statistics cleared!');
 };
 
 export class PacketInterceptor {
@@ -72,6 +72,7 @@ export class PacketInterceptor {
             const getTCPPacket = (frameBuffer, ethOffset) => {
                 const ipPacket = decoders.IPV4(frameBuffer, ethOffset);
                 const ipId = ipPacket.info.id;
+                if (ipPacket.info.protocol !== PROTOCOL.IP.TCP) return null;
                 const isFragment = (ipPacket.info.flags & 0x1) !== 0;
                 const _key = `${ipId}-${ipPacket.info.srcaddr}-${ipPacket.info.dstaddr}-${ipPacket.info.protocol}`;
                 const now = Date.now();
@@ -80,6 +81,7 @@ export class PacketInterceptor {
                     if (!fragmentIpCache.has(_key)) {
                         fragmentIpCache.set(_key, { fragments: [], timestamp: now });
                     }
+
                     const cacheEntry = fragmentIpCache.get(_key);
                     cacheEntry.fragments.push(Buffer.from(frameBuffer.subarray(ethOffset)));
                     cacheEntry.timestamp = now;
@@ -128,7 +130,9 @@ export class PacketInterceptor {
             c.setMinBytes && c.setMinBytes(0);
 
             const eth_queue = [];
-            c.on('packet', (nbytes) => {
+            c.on('packet', (nbytes, truncated) => {
+                // Skip truncated packets as decoding them may corrupt the TCP stream
+                if (truncated) return;
                 eth_queue.push(Buffer.from(buffer.subarray(0, nbytes)));
             });
 
@@ -146,83 +150,98 @@ export class PacketInterceptor {
                 const buf = Buffer.from(tcpBuffer.subarray(tcpPacket.hdrlen));
                 const { srcport, dstport } = tcpPacket.info;
                 const src_server = `${srcaddr}:${srcport} -> ${dstaddr}:${dstport}`;
+                const seqno = tcpPacket.info.seqno >>> 0;
+
+                // 32-bit TCP sequence helpers (wrap-safe)
+                const seqLT = (a, b) => (a - b) >>> 0 > 0x80000000;
+                const seqGTE = (a, b) => !seqLT(a, b);
 
                 await tcp_lock.acquire();
                 try {
                     if (current_server !== src_server) {
+                        let identified = false;
                         try {
-                            if (buf[4] == 0) {
-                                const data = buf.subarray(10);
-                                if (data.length) {
-                                    const stream = Readable.from(data, { objectMode: false });
-                                    let data1;
-                                    do {
-                                        const len_buf = stream.read(4);
-                                        if (!len_buf) break;
-
-                                        const packetLength = len_buf.readUInt32BE();
-                                        if (packetLength > 0x100000 || packetLength < 4) {
-                                            logger.warn(
-                                                `Invalid packet length during server identification: ${packetLength}. Discarding buffer.`
-                                            );
-                                            stream.destroy();
-                                            break;
-                                        }
-
-                                        data1 = stream.read(packetLength - 4);
-                                        if (!data1) break;
-
-                                        const signature = Buffer.from([0x00, 0x63, 0x33, 0x53, 0x42, 0x00]); //c3SB??
-                                        if (Buffer.compare(data1.subarray(5, 5 + signature.length), signature) !== 0)
-                                            break;
-
-                                        if (current_server !== src_server) {
-                                            current_server = src_server;
-                                            clearTcpCache();
-                                            tcp_next_seq = tcpPacket.info.seqno + buf.length;
-                                            clearDataOnServerChange();
-                                            logger.info('Got Scene Server Address: ' + src_server);
-                                        }
-                                    } while (data1 && data1.length);
+                            // Pattern 1: Packet stream with length-prefixed chunks starting at offset 10
+                            if (buf.length >= 14 && buf[4] === 0) {
+                                let offset = 10;
+                                while (offset + 4 <= buf.length) {
+                                    const packetLength = buf.readUInt32BE(offset);
+                                    if (packetLength < 4 || packetLength > 0x100000) break;
+                                    if (offset + packetLength > buf.length) break;
+                                    const data1 = buf.subarray(offset + 4, offset + packetLength);
+                                    const signature = Buffer.from([0x00, 0x63, 0x33, 0x53, 0x42, 0x00]); // \0 c3SB \0
+                                    if (
+                                        data1.length >= 5 + signature.length &&
+                                        Buffer.compare(data1.subarray(5, 5 + signature.length), signature) === 0
+                                    ) {
+                                        identified = true;
+                                        break;
+                                    }
+                                    offset += packetLength;
                                 }
                             }
-                            if (buf.length === 0x62) {
+                            // Pattern 2: Login return fixed packet
+                            if (!identified && buf.length >= 0x62) {
                                 const signature = Buffer.from([
                                     0x00, 0x00, 0x00, 0x62, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x11, 0x45, 0x14,
                                     0x00, 0x00, 0x00, 0x00, 0x0a, 0x4e, 0x08, 0x01, 0x22, 0x24,
                                 ]);
                                 if (
                                     Buffer.compare(buf.subarray(0, 10), signature.subarray(0, 10)) === 0 &&
-                                    Buffer.compare(buf.subarray(14, 14 + 6), signature.subarray(14, 14 + 6)) === 0
+                                    Buffer.compare(buf.subarray(14, 20), signature.subarray(14, 20)) === 0
                                 ) {
-                                    if (current_server !== src_server) {
-                                        current_server = src_server;
-                                        clearTcpCache();
-                                        tcp_next_seq = tcpPacket.info.seqno + buf.length;
-                                        clearDataOnServerChange();
-                                        logger.info('Got Scene Server Address by Login Return Packet: ' + src_server);
-                                    }
+                                    identified = true;
                                 }
                             }
-                        } catch (e) {}
-                        return;
-                    }
 
-                    if (tcp_next_seq === -1) {
-                        if (buf.length > 4 && buf.readUInt32BE() < 0x0fffff) {
-                            tcp_next_seq = tcpPacket.info.seqno;
-                        } else {
-                            logger.error('Unexpected TCP capture error! tcp_next_seq is -1');
+                            if (identified) {
+                                if (current_server !== src_server) {
+                                    let old_server = current_server;
+                                    current_server = src_server;
+                                    clearTcpCache();
+                                    // Do NOT skip this packet: start assembling from this seq
+                                    tcp_next_seq = seqno;
+                                    clearDataOnServerChange();
+                                    logger.info('Got Scene Server Address: ' + src_server + '. Previous: ' + old_server);
+                                    try {
+                                        socket.emit('server_found', { src_server, timestamp: Date.now() });
+                                    } catch (e) {
+                                        logger.debug('Failed to emit server_found: ' + e.message);
+                                    }
+                                }
+                            } else {
+                                // Not our target server yet
+                                return;
+                            }
+                        } catch (e) {
+                            // If detection fails, skip this packet and wait for next
+                            return;
                         }
                     }
 
-                    if (tcp_next_seq - tcpPacket.info.seqno <= 0 || tcp_next_seq === -1) {
-                        tcp_cache.set(tcpPacket.info.seqno, buf);
+                    if (tcp_next_seq === -1) {
+                        // Initialize expected sequence to current if the payload looks plausible
+                        if (buf.length >= 4) {
+                            tcp_next_seq = seqno;
+                        } else {
+                            // No data payload to assemble
+                            return;
+                        }
+                    }
+
+                    // Cache only segments at/after the next expected sequence
+                    if (buf.length > 0 && seqGTE(seqno, tcp_next_seq)) {
+                        tcp_cache.set(seqno, buf);
                     }
 
                     while (tcp_cache.has(tcp_next_seq)) {
                         const seq = tcp_next_seq;
                         const cachedTcpData = tcp_cache.get(seq);
+                        if (!cachedTcpData || cachedTcpData.length === 0) {
+                            // Drop zero-length segments to avoid stalling
+                            tcp_cache.delete(seq);
+                            break;
+                        }
                         _data = _data.length === 0 ? cachedTcpData : Buffer.concat([_data, cachedTcpData]);
                         tcp_next_seq = (seq + cachedTcpData.length) >>> 0;
                         tcp_cache.delete(seq);
@@ -257,7 +276,7 @@ export class PacketInterceptor {
                         const pkt = eth_queue.shift();
                         await processEthPacket(pkt);
                     } else {
-                        await new Promise((r) => setTimeout(r, 1));
+                        await new Promise((r) => setTimeout(r, 0));
                     }
                 }
             })();
