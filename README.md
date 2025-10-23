@@ -27,7 +27,8 @@ You'll need to have the following software installed:
 - **Npcap**: The installer is located in the `/resources` folder of this repository.
 
 ### To-do
-- Loading screen sometimes takes a while to go away
+- ~~Loading screen sometimes takes a while to go away~~
+- Fix x number of players in window instead of static height
 - Self updater
 - Export to excel/CSV
 - Players in AOI bubble

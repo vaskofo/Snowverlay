@@ -1129,15 +1129,16 @@ function transitionOverlayMessage(nextText, showTimer = false, onDisplayed) {
 }
 
 function tryHideOverlay() {
-    // Only hide overlay if we have both server data and player UID
-    if (!hasReceivedServerData || currentPlayerUid === null) {
+    if (!isWebSocketConnected && !hasReceivedServerData) {
+        if (!overlayHideTimeout) {
+            overlayHideTimeout = setTimeout(() => {
+                hideOverlay();
+            }, 30000); 
+        }
         return;
     }
 
-    // Stop timer and show final "Connected" time
     stopOverlayTimer(true);
-
-    // Wait minimum duration, then hide overlay
     const elapsed = Date.now() - overlayLastChange;
     const waitTime = Math.max(0, OVERLAY_MIN_DURATION - elapsed);
 
@@ -1773,7 +1774,9 @@ window.addEventListener('beforeunload', () => {
         stopSkillAutoRefresh();
         if (overlayWaitingInterval) clearInterval(overlayWaitingInterval);
         if (overlayHideTimeout) clearTimeout(overlayHideTimeout);
+        overlayHideTimeout = null;
         if (overlayMessageTimeout) clearTimeout(overlayMessageTimeout);
+        overlayMessageTimeout = null;
         if (socket) {
             try {
                 socket.off && socket.off();
