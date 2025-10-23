@@ -732,7 +732,11 @@ function processDataUpdate(data) {
 
     if (!hasReceivedServerData) {
         hasReceivedServerData = true;
-        maybeHideOverlayAfterData();
+        transitionOverlayMessage(PROCESSING_PACKET_MESSAGE, false, () => {
+            setTimeout(() => {
+                tryHideOverlay();
+            }, 500);
+        });
     }
 
     let activityDetected = false;
@@ -910,8 +914,7 @@ function connectWebSocket() {
         showServerStatus('connected');
         lastWebSocketMessage = Date.now();
 
-        // If we're still on "Finding server..." message, transition to "Waiting for initial packet..."
-        if (overlayCurrentMessage === FINDING_SERVER_MESSAGE) {
+        if (!statusOverlay?.classList.contains('hidden') && currentPlayerUid === null) {
             transitionOverlayMessage(WAITING_FOR_PACKET_MESSAGE, true);
         }
     });
@@ -924,12 +927,6 @@ function connectWebSocket() {
     socket.on('data', (data) => {
         processDataUpdate(data);
         lastWebSocketMessage = Date.now();
-
-        // Mark that we've received server data and try to hide overlay
-        if (!hasReceivedServerData) {
-            hasReceivedServerData = true;
-            tryHideOverlay();
-        }
     });
 
     // Custom server lifecycle events emitted by backend
@@ -954,13 +951,15 @@ function connectWebSocket() {
             }
         } catch (_) {}
 
-        // Show brief processing message without timer
-        transitionOverlayMessage(PROCESSING_PACKET_MESSAGE, false, () => {
-            // After brief delay, try to hide overlay
-            setTimeout(() => {
-                tryHideOverlay();
-            }, 500);
-        });
+        if (!hasReceivedServerData && !statusOverlay?.classList.contains('hidden')) {
+            transitionOverlayMessage(PROCESSING_PACKET_MESSAGE, false, () => {
+                setTimeout(() => {
+                    tryHideOverlay();
+                }, 500);
+            });
+        } else {
+            console.log('Player UUID received, waiting for combat data...');
+        }
     });
 
     socket.on('user_deleted', (data) => {
@@ -1133,7 +1132,7 @@ function tryHideOverlay() {
         if (!overlayHideTimeout) {
             overlayHideTimeout = setTimeout(() => {
                 hideOverlay();
-            }, 30000); 
+            }, 30000);
         }
         return;
     }

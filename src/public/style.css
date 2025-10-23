@@ -517,10 +517,10 @@ body.font-large {
 
 .status-overlay {
     position: absolute;
-    top: 32px;
+    top: 42px;
     left: 0;
     right: 0;
-    bottom: 18px;
+    bottom: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
