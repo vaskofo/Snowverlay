@@ -26,6 +26,19 @@ You'll need to have the following software installed:
 - **npm**: Comes bundled with Node.js.
 - **Npcap**: The installer is located in the `/resources` folder of this repository.
 
+### To-do
+- Loading screen sometimes takes a while to go away
+- Self updater
+- Export to excel/CSV
+- Players in AOI bubble
+- ~~Change buttons from labels to icons~~
+- Delay clear to next DPS update instead of immediate and improve timeout detection
+- Capture packets related to party, dungeon and current boss fight
+- Smaller window that would sit on top of party with simple dps/hps numbers
+- Translate mob names
+- Play a sound when queue pops for dungeon/raid
+- Store sessions by boss/world boss
+
 ### Installation/Build Instructions
 
 1.  **Clone the repository:**
