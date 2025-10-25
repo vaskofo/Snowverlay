@@ -29,6 +29,7 @@ You'll need to have the following software installed:
 ### To-do
 - ~~Loading screen sometimes takes a while to go away~~
 - ~~Fix x number of players in window instead of static height~~
+- ~~Fix "finding server" message only disappearing after finding someone and not server~~
 - Customizable hotkeys
 - Skill icons
 - More skill info on breakdown (crit rate, luck rate)

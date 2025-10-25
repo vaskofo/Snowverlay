@@ -7,7 +7,8 @@
 - **Dynamic Height**: The overlay height now adjusts based on the number of players displayed (can be toggled in settings).
 
 ### Changed
-- **Welcome Screen**: Removed loading messages for a cleaner look.
+- **Welcome Screen**: Removed most loading messages.
+- **Auto-resize Logic**: Improved logic for resizing the overlay when switching screens.
 
 ## [2.3.1] - 2025-10-22
 

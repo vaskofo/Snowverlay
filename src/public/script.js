@@ -169,6 +169,184 @@ const INACTIVITY_GRACE_MS = 1000;
 // Font size scaling: small (default), normal, large
 let _currentFontSize = 'small';
 
+const ResizeController = (function () {
+    const debounceMs = 100;
+    let timer = null;
+    let pending = { reasonSet: new Set(), heightHint: null, screen: null, measure: false };
+    let lastSentHeight = null;
+
+    function _clearPending() {
+        pending.reasonSet.clear();
+        pending.heightHint = null;
+        pending.screen = null;
+        pending.measure = false;
+    }
+
+    function _enqueue(reason, opts = {}) {
+        try {
+            pending.reasonSet.add(reason || 'unknown');
+            if (opts && typeof opts.heightHint === 'number') {
+                pending.heightHint = Math.max(pending.heightHint || 0, Math.round(opts.heightHint));
+            }
+            if (opts && opts.screen) pending.screen = opts.screen;
+            if (opts && opts.measure) pending.measure = true;
+        } catch (_) {}
+        if (timer) clearTimeout(timer);
+        if (opts && opts.immediate) {
+            timer = null;
+            requestAnimationFrame(() => {
+                _flush();
+            });
+            return;
+        }
+        timer = setTimeout(() => {
+            timer = null;
+            _flush();
+        }, debounceMs);
+    }
+
+    function _flush() {
+        const hint = pending.heightHint;
+        const screen = pending.screen || getCurrentScreen();
+        const doMeasure = pending.measure;
+        _clearPending();
+        if (doMeasure) {
+            measureAndSend(screen);
+            return;
+        }
+        if (hint === null || hint === undefined) return;
+        _sendHeight(hint, screen);
+    }
+
+    function measureAndSend(screen) {
+        requestAnimationFrame(() => {
+            try {
+                const controlsEl = document.querySelector('.controls');
+                const footerEl = document.querySelector('.footer');
+                const totalsEl = totalsHeaderEl && !totalsHeaderEl.classList.contains('hidden') ? totalsHeaderEl : null;
+
+                const controlsH = controlsEl ? controlsEl.getBoundingClientRect().height : 0;
+                const footerH = footerEl ? footerEl.getBoundingClientRect().height : 0;
+                const totalsH = totalsEl ? totalsEl.getBoundingClientRect().height : 0;
+
+                if (screen === SCREEN_DPS && windowHeightMode === 'auto') {
+                    const items = dpsListContainer ? Array.from(dpsListContainer.querySelectorAll('.data-item')) : [];
+                    const playerCount = items.length;
+                    const effectiveCount = playerCount === 0 ? 0 : Math.max(0, Math.min(playerCount, autoPlayerCount));
+
+                    let rowsHeight = 0;
+                    if (effectiveCount === 0) {
+                        if (emptyMeterMessage && !emptyMeterMessage.classList.contains('hidden')) {
+                            rowsHeight = emptyMeterMessage.getBoundingClientRect().height;
+                        } else {
+                            rowsHeight = ROW_HEIGHT * 2;
+                        }
+                    } else {
+                        const count = Math.min(effectiveCount, items.length);
+                        if (count > 0) {
+                            let total = 0;
+                            for (let i = 0; i < count; i++) {
+                                total += items[i].offsetHeight || items[i].getBoundingClientRect().height || ROW_HEIGHT;
+                            }
+                            rowsHeight = total;
+                            if (effectiveCount > items.length) {
+                                const totalRendered = items.reduce(
+                                    (sum, el) =>
+                                        sum + (el.offsetHeight || el.getBoundingClientRect().height || ROW_HEIGHT),
+                                    0
+                                );
+                                const avg = items.length > 0 ? totalRendered / items.length : ROW_HEIGHT;
+                                rowsHeight += (effectiveCount - items.length) * avg;
+                            }
+                        } else {
+                            rowsHeight = effectiveCount * ROW_HEIGHT;
+                        }
+                    }
+
+                    const columnsStyle = columnsContainer ? window.getComputedStyle(columnsContainer) : null;
+                    let columnsExtra = 0;
+                    if (columnsStyle) {
+                        const padTop = parseFloat(columnsStyle.paddingTop) || 0;
+                        const padBottom = parseFloat(columnsStyle.paddingBottom) || 0;
+                        columnsExtra = padTop + padBottom;
+                    }
+
+                    const SAFE_BOTTOM_PADDING = 2;
+                    const desiredHeight =
+                        controlsH + (totalsH + rowsHeight + columnsExtra) + footerH + SAFE_BOTTOM_PADDING;
+                    const finalHeight = Math.max(BASE_WINDOW_HEIGHT, Math.round(desiredHeight));
+                    _sendHeight(finalHeight, screen);
+                    return;
+                }
+
+                const stored = getStaticHeightForScreen(screen);
+                _sendHeight(stored || MIN_NON_DPS_HEIGHT, screen);
+            } catch (e) {
+                _sendHeight(BASE_WINDOW_HEIGHT, screen);
+            }
+        });
+    }
+
+    function _sendHeight(height, screen) {
+        if (!window.electronAPI || typeof window.electronAPI.setWindowSize !== 'function') return;
+        const rounded = Math.round(height);
+        if (lastSentHeight !== null && Math.abs(lastSentHeight - rounded) <= 1) return;
+        const w = Math.max(1, Math.round(window.innerWidth));
+        try {
+            isProgrammaticResize = true;
+            pendingResizeHeight = rounded;
+            lastRequestedHeight = rounded;
+        } catch (_) {}
+        lastSentHeight = rounded;
+        window.electronAPI.setWindowSize(w, rounded);
+    }
+
+    function requestHeight(reason, opts = {}) {
+        _enqueue(reason, opts);
+    }
+
+    function handleNativeResize(bounds) {
+        try {
+            const reportedHeight = bounds && typeof bounds.height === 'number' ? Math.round(bounds.height) : null;
+            if (isProgrammaticResize) {
+                if (
+                    reportedHeight !== null &&
+                    pendingResizeHeight !== null &&
+                    Math.abs(reportedHeight - pendingResizeHeight) <= 2
+                ) {
+                    isProgrammaticResize = false;
+                    pendingResizeHeight = null;
+                    return;
+                }
+                isProgrammaticResize = false;
+                pendingResizeHeight = null;
+                return;
+            }
+            if (reportedHeight !== null) {
+                const screen = getCurrentScreen();
+                setStaticHeightForScreen(screen, reportedHeight);
+                if (screen === SCREEN_DPS) {
+                    if (windowHeightMode === 'auto') {
+                        setWindowHeightMode('static');
+                    }
+                }
+                lastRequestedHeight = null;
+                return;
+            }
+            if (windowHeightMode === 'auto') {
+                setWindowHeightMode('static');
+            }
+        } catch (e) {
+            console.error('ResizeController.handleNativeResize error', e);
+        }
+    }
+
+    return {
+        requestHeight,
+        handleNativeResize,
+    };
+})();
+
 function setFontSize(size) {
     const valid = ['small', 'normal', 'large'];
     const target = valid.includes(size) ? size : 'small';
@@ -509,77 +687,7 @@ function adjustWindowHeight(playerCount) {
     if (statusOverlay && !statusOverlay.classList.contains('hidden')) return;
     if (!columnsContainer || columnsContainer.classList.contains('hidden')) return;
 
-    const effectiveCount = playerCount === 0 ? 0 : Math.max(0, Math.min(playerCount, autoPlayerCount));
-
-    // We need to measure actual DOM sizes after render to account for font scaling,
-    // optional sub-bars, and any CSS that affects heights. Use requestAnimationFrame
-    // so layout has settled before measuring.
-    requestAnimationFrame(() => {
-        try {
-            // Heights of chrome parts
-            const controlsEl = document.querySelector('.controls');
-            const footerEl = document.querySelector('.footer');
-            const totalsEl = totalsHeaderEl && !totalsHeaderEl.classList.contains('hidden') ? totalsHeaderEl : null;
-
-            const controlsH = controlsEl ? controlsEl.getBoundingClientRect().height : 0;
-            const footerH = footerEl ? footerEl.getBoundingClientRect().height : 0;
-            const totalsH = totalsEl ? totalsEl.getBoundingClientRect().height : 0;
-
-            // Determine height for the rows we want to fit using positions inside the dps list
-            let rowsHeight = 0;
-            const items = dpsListContainer ? Array.from(dpsListContainer.querySelectorAll('.data-item')) : [];
-
-            if (effectiveCount === 0) {
-                if (emptyMeterMessage && !emptyMeterMessage.classList.contains('hidden')) {
-                    rowsHeight = emptyMeterMessage.getBoundingClientRect().height;
-                } else {
-                    rowsHeight = ROW_HEIGHT * 2;
-                }
-            } else {
-                const count = Math.min(effectiveCount, items.length);
-                if (count > 0) {
-                    // Sum offsetHeight of the first N items to avoid subtle bounding rect rounding issues
-                    let total = 0;
-                    for (let i = 0; i < count; i++) {
-                        total += items[i].offsetHeight || items[i].getBoundingClientRect().height || ROW_HEIGHT;
-                    }
-                    rowsHeight = total;
-
-                    // If we want more rows than rendered, estimate remaining rows using average row height
-                    if (effectiveCount > items.length) {
-                        const totalRendered = items.reduce(
-                            (sum, el) => sum + (el.offsetHeight || el.getBoundingClientRect().height || ROW_HEIGHT),
-                            0
-                        );
-                        const avg = items.length > 0 ? totalRendered / items.length : ROW_HEIGHT;
-                        rowsHeight += (effectiveCount - items.length) * avg;
-                    }
-                } else {
-                    rowsHeight = effectiveCount * ROW_HEIGHT;
-                }
-            }
-
-            const columnsStyle = columnsContainer ? window.getComputedStyle(columnsContainer) : null;
-            let columnsExtra = 0;
-            if (columnsStyle) {
-                const padTop = parseFloat(columnsStyle.paddingTop) || 0;
-                const padBottom = parseFloat(columnsStyle.paddingBottom) || 0;
-                columnsExtra = padTop + padBottom;
-            }
-
-            // Compute final desired height: controls + (totals + rows + padding) + footer
-            // Add a small safety padding to avoid clipping the bottom of the last row's fill bar
-            const SAFE_BOTTOM_PADDING = 2;
-            const desiredHeight = controlsH + (totalsH + rowsHeight + columnsExtra) + footerH + SAFE_BOTTOM_PADDING;
-            const finalHeight = Math.max(BASE_WINDOW_HEIGHT, Math.round(desiredHeight));
-
-            requestWindowResize(finalHeight);
-        } catch (e) {
-            const fallbackCount = Math.max(0, Math.min(playerCount, autoPlayerCount));
-            const desiredHeight = BASE_WINDOW_HEIGHT + (fallbackCount === 0 ? 2 : fallbackCount) * ROW_HEIGHT;
-            requestWindowResize(Math.max(BASE_WINDOW_HEIGHT, desiredHeight));
-        }
-    });
+    ResizeController.requestHeight('auto', { measure: true, screen: SCREEN_DPS });
 }
 
 function requestWindowResize(targetHeight) {
@@ -592,11 +700,7 @@ function requestWindowResize(targetHeight) {
         return;
     }
 
-    const currentWidth = Math.max(1, Math.round(window.innerWidth));
-    isProgrammaticResize = true;
-    pendingResizeHeight = roundedHeight;
-    lastRequestedHeight = roundedHeight;
-    window.electronAPI.setWindowSize(currentWidth, roundedHeight);
+    ResizeController.requestHeight('manual', { heightHint: roundedHeight, screen: getCurrentScreen() });
 }
 
 function getCurrentScreen() {
@@ -643,64 +747,13 @@ function setStaticHeightForScreen(screen, height) {
 }
 
 function ensureHeightForScreen(screen) {
-    if (!window.electronAPI || typeof window.electronAPI.setWindowSize !== 'function') return;
     const target = getStaticHeightForScreen(screen);
-    isProgrammaticResize = true;
-    pendingResizeHeight = target;
-    lastRequestedHeight = target;
-    const w = Math.max(1, Math.round(window.innerWidth));
-    window.electronAPI.setWindowSize(w, Math.round(target));
+    ResizeController.requestHeight('screen', { heightHint: target, screen, immediate: true });
 }
 
 function handleWindowResized(bounds) {
-    const reportedHeight = bounds && typeof bounds.height === 'number' ? bounds.height : null;
-
-    if (isProgrammaticResize) {
-        if (
-            reportedHeight !== null &&
-            pendingResizeHeight !== null &&
-            Math.abs(reportedHeight - pendingResizeHeight) <= 2
-        ) {
-            isProgrammaticResize = false;
-            pendingResizeHeight = null;
-            return;
-        }
-        isProgrammaticResize = false;
-        pendingResizeHeight = null;
-        return;
-    }
-
-    // If the user resized the window manually (height differs significantly from our last request)
-    if (reportedHeight !== null) {
-        if (lastRequestedHeight !== null && Math.abs(reportedHeight - lastRequestedHeight) <= 2) {
-            // This was our programmatic resize feedback - ignore
-            return;
-        }
-
-        // Manual resize
-        const screen = getCurrentScreen();
-        setStaticHeightForScreen(screen, reportedHeight);
-
-        if (screen === SCREEN_DPS) {
-            // Only change setting to static if user changes height on dps meter screen
-            if (windowHeightMode === 'auto') {
-                setWindowHeightMode('static');
-            }
-        }
-        lastRequestedHeight = null;
-        return;
-    }
-
-    if (reportedHeight === null) {
-        if (windowHeightMode === 'auto') {
-            setWindowHeightMode('static');
-        }
-        return;
-    }
-
-    if (windowHeightMode === 'auto') {
-        setWindowHeightMode('static');
-    }
+    ResizeController.handleNativeResize(bounds || {});
+    return;
 }
 
 function setWindowHeightMode(mode, options = {}) {
@@ -1022,14 +1075,16 @@ function connectWebSocket() {
 
     // Custom server lifecycle events emitted by backend
     socket.on('server_found', (payload) => {
-        console.debug('server_found event', payload);
-
-        // Simplified: do not show a separate 'waiting for packet' overlay step.
+        try {
+            if (!hasReceivedServerData && statusOverlay && !statusOverlay.classList.contains('hidden')) {
+                setTimeout(() => {
+                    tryHideOverlay();
+                }, 200);
+            }
+        } catch (_) {}
     });
 
     socket.on('player_uuid', (payload) => {
-        console.debug('player_uuid event', payload);
-
         // Store the player UID
         try {
             if (payload && payload.uid !== undefined && payload.uid !== null) {
@@ -1145,17 +1200,12 @@ function showOverlayMessage(text, showTimer = false) {
                     const EXTRA = 12;
 
                     const computedNeeded = Math.round(controlsH + contentH + footerH + EXTRA);
-                    const screen = SCREEN_DPS;
-                    const stored = getStaticHeightForScreen(screen) || 0;
-                    const target = Math.max(200, stored || 0, computedNeeded);
-
-                    if (window.electronAPI && typeof window.electronAPI.setWindowSize === 'function') {
-                        const w = Math.max(1, Math.round(window.innerWidth));
-                        isProgrammaticResize = true;
-                        pendingResizeHeight = target;
-                        lastRequestedHeight = target;
-                        window.electronAPI.setWindowSize(w, target);
-                    }
+                    const target = Math.max(200, computedNeeded);
+                    ResizeController.requestHeight('overlay', {
+                        heightHint: target,
+                        screen: SCREEN_DPS,
+                        immediate: true,
+                    });
                 } catch (_) {}
             });
         } catch (_) {}
@@ -1286,6 +1336,19 @@ function hideOverlay() {
         // Remove the temporary loading-initial class so the container can shrink
         const mainContainer = document.querySelector('.main-container');
         if (mainContainer) mainContainer.classList.remove('loading-initial');
+        try {
+            if (windowHeightMode === 'auto') {
+                if (columnsContainer && !columnsContainer.classList.contains('hidden')) {
+                    ResizeController.requestHeight('overlay-hidden', {
+                        immediate: true,
+                        measure: true,
+                        screen: SCREEN_DPS,
+                    });
+                } else {
+                    ResizeController.requestHeight('overlay-hidden', { immediate: true, measure: true });
+                }
+            }
+        } catch (_) {}
     }, 400);
 }
 
@@ -1311,6 +1374,19 @@ function hideOverlayImmediate() {
     statusOverlay.classList.remove('fade-out');
     const mainContainer = document.querySelector('.main-container');
     if (mainContainer) mainContainer.classList.remove('loading-initial');
+    try {
+        if (windowHeightMode === 'auto') {
+            if (columnsContainer && !columnsContainer.classList.contains('hidden')) {
+                ResizeController.requestHeight('overlay-hidden', {
+                    immediate: true,
+                    measure: true,
+                    screen: SCREEN_DPS,
+                });
+            } else {
+                ResizeController.requestHeight('overlay-hidden', { immediate: true, measure: true });
+            }
+        }
+    } catch (_) {}
 }
 
 function initialize() {
@@ -1570,6 +1646,9 @@ function toggleSettings() {
         // Ensure DPS static height is applied when returning from settings
         if (windowHeightMode !== 'auto') ensureHeightForScreen(SCREEN_DPS);
         updateAll();
+        if (windowHeightMode === 'auto') {
+            ResizeController.requestHeight('screen-switch', { immediate: true, measure: true, screen: SCREEN_DPS });
+        }
     } else {
         settingsContainer.classList.remove('hidden');
         columnsContainer.classList.add('hidden');
@@ -1589,6 +1668,9 @@ function toggleHelp() {
         // Ensure DPS static height is applied when returning from help
         if (windowHeightMode !== 'auto') ensureHeightForScreen(SCREEN_DPS);
         updateAll();
+        if (windowHeightMode === 'auto') {
+            ResizeController.requestHeight('screen-switch', { immediate: true, measure: true, screen: SCREEN_DPS });
+        }
     } else {
         helpContainer.classList.remove('hidden');
         columnsContainer.classList.add('hidden');
@@ -1771,6 +1853,9 @@ function backToMain() {
     // If static mode, ensure DPS height is applied; if auto, updateAll will request auto height
     if (windowHeightMode !== 'auto') {
         ensureHeightForScreen(SCREEN_DPS);
+    }
+    if (windowHeightMode === 'auto') {
+        ResizeController.requestHeight('screen-switch', { immediate: true, measure: true, screen: SCREEN_DPS });
     }
 }
 
