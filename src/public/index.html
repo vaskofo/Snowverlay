@@ -51,6 +51,7 @@
                         </div>
                     </div>
                     <div id="dpsList" class="dps-list"></div>
+                    <div id="emptyMeterMessage" class="empty-meter-message hidden">Waiting for combat...</div>
                 </div>
                 <div id="skillDetailsContainer" class="skill-details-container hidden">
                     <div class="skill-details-header">
@@ -121,9 +122,8 @@
                             Scales the UI for bigger screens without changing tuned proportions.
                         </div>
                     </div>
-                    <!--
                     <div class="settings-option">
-                        <label>Window height mode</label>
+                        <label>Window height mode (DPS view)</label>
                         <div class="settings-radio-group">
                             <label class="radio-option">
                                 <input
@@ -140,6 +140,10 @@
                                 <span>Auto-fit players</span>
                             </label>
                         </div>
+                        <div style="font-size: 11px; color: #ccc; margin-top: 4px">
+                            Static: Window height stays fixed when manually resized. Auto-fit: Height adjusts to fit the
+                            desired number of players.
+                        </div>
                         <div id="autoHeightControls" class="auto-height-controls hidden">
                             <label for="autoPlayerCount">Players to fit</label>
                             <input type="number" id="autoPlayerCount" min="1" max="24" step="1" value="8" />
@@ -148,7 +152,6 @@
                             </div>
                         </div>
                     </div>
-                    -->
                 </div>
                 <div id="helpContainer" class="help-container hidden">
                     <h2>Keyboard Shortcuts</h2>

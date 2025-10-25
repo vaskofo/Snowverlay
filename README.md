@@ -28,12 +28,16 @@ You'll need to have the following software installed:
 
 ### To-do
 - ~~Loading screen sometimes takes a while to go away~~
-- Fix x number of players in window instead of static height
+- ~~Fix x number of players in window instead of static height~~
+- Customizable hotkeys
+- Skill icons
+- More skill info on breakdown (crit rate, luck rate)
+- Class name on skill breakdown
 - Self updater
 - Export to excel/CSV
 - Players in AOI bubble
 - ~~Change buttons from labels to icons~~
-- Delay clear to next DPS update instead of immediate and improve timeout detection
+- Delay clear to next DPS update instead of immediate and improve timeout detection (Full and single reset are desynced causing dps on user to be lower?), fix pause detection (on tina end specifically, void guy?)
 - Capture packets related to party, dungeon and current boss fight
 - Smaller window that would sit on top of party with simple dps/hps numbers
 - Translate mob names

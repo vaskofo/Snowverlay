@@ -62,6 +62,7 @@ function isCurrentPlayer(user) {
 
 const columnsContainer = document.getElementById('columnsContainer');
 const dpsListContainer = document.getElementById('dpsList');
+const emptyMeterMessage = document.getElementById('emptyMeterMessage');
 const skillDetailsContainer = document.getElementById('skillDetailsContainer');
 const skillDetailsList = document.getElementById('skillDetailsList');
 const skillDetailsUserName = document.getElementById('skillDetailsUserName');
@@ -82,11 +83,10 @@ const classColorToggle = document.getElementById('classColorToggle');
 const globalShortcutsToggle = document.getElementById('globalShortcutsToggle');
 const hideHpsToggle = document.getElementById('hideHpsToggle');
 const hideMitigationToggle = document.getElementById('hideMitigationToggle');
-// Controls for window height mode are temporarily hidden/disabled
-// const windowHeightModeStaticRadio = document.getElementById('windowHeightModeStatic');
-// const windowHeightModeAutoRadio = document.getElementById('windowHeightModeAuto');
-// const autoPlayerCountInput = document.getElementById('autoPlayerCount');
-// const autoHeightControls = document.getElementById('autoHeightControls');
+const windowHeightModeStaticRadio = document.getElementById('windowHeightModeStatic');
+const windowHeightModeAutoRadio = document.getElementById('windowHeightModeAuto');
+const autoPlayerCountInput = document.getElementById('autoPlayerCount');
+const autoHeightControls = document.getElementById('autoHeightControls');
 const currentDateTime = document.getElementById('currentDateTime');
 const dateTimeFormatSelect = document.getElementById('dateTimeFormatSelect');
 const fontSizeSelect = document.getElementById('fontSizeSelect');
@@ -105,7 +105,7 @@ let userColorSource = {}; // 'random' | 'class' | 'current' | 'gray'
 let useClassColors = true; // default to class-based colors
 let hideHpsBar = true; // true = hide HPS bar by default
 let hideMitigationBar = false; // false = show mitigation bar by default
-let windowHeightMode = 'static'; // force default to static
+let windowHeightMode = 'static'; // 'static' or 'auto' - applies to DPS screen only
 let autoPlayerCount = 8;
 let isPaused = false;
 let socket = null;
@@ -152,11 +152,7 @@ let hasReceivedServerData = false;
 
 const SERVER_URL = 'localhost:8990';
 const OVERLAY_MIN_DURATION = 500;
-const OVERLAY_WELCOME_DURATION = 1000; // show welcome message for 1 second
-const WELCOME_MESSAGE = 'Welcome to Snowverlay!';
 const FINDING_SERVER_MESSAGE = 'Finding server...';
-const WAITING_FOR_PACKET_MESSAGE = 'Waiting for initial packet...';
-const PROCESSING_PACKET_MESSAGE = 'Processing packet...';
 const MIN_AUTO_PLAYER_COUNT = 1;
 const MAX_AUTO_PLAYER_COUNT = 24;
 const BASE_WINDOW_HEIGHT = 42;
@@ -234,6 +230,15 @@ function toAlpha(color, alpha = 0.5) {
 function renderDataList(users) {
     if (!dpsListContainer) return;
     dpsListContainer.innerHTML = '';
+
+    // Show/hide empty message based on player count
+    if (!emptyMeterMessage) {
+        // Element not found, skip empty message handling
+    } else if (users.length === 0) {
+        emptyMeterMessage.classList.remove('hidden');
+    } else {
+        emptyMeterMessage.classList.add('hidden');
+    }
 
     const totalDamageOverall = users.reduce((sum, user) => sum + user.total_damage.total, 0);
     const totalHealingOverall = users.reduce((sum, user) => sum + user.total_healing.total, 0);
@@ -496,27 +501,85 @@ function updateAll() {
 }
 
 function adjustWindowHeight(playerCount) {
-    if (windowHeightMode !== 'auto') {
-        return;
-    }
+    if (windowHeightMode !== 'auto') return;
 
-    if (settingsContainer && !settingsContainer.classList.contains('hidden')) {
-        return;
-    }
+    if (settingsContainer && !settingsContainer.classList.contains('hidden')) return;
+    if (helpContainer && !helpContainer.classList.contains('hidden')) return;
 
-    if (helpContainer && !helpContainer.classList.contains('hidden')) {
-        return;
-    }
+    if (statusOverlay && !statusOverlay.classList.contains('hidden')) return;
+    if (!columnsContainer || columnsContainer.classList.contains('hidden')) return;
 
-    if (!columnsContainer || columnsContainer.classList.contains('hidden')) {
-        return;
-    }
+    const effectiveCount = playerCount === 0 ? 0 : Math.max(0, Math.min(playerCount, autoPlayerCount));
 
-    const effectiveCount = Math.max(0, Math.min(playerCount, autoPlayerCount));
-    const desiredHeight = BASE_WINDOW_HEIGHT + effectiveCount * ROW_HEIGHT;
-    const finalHeight = Math.max(BASE_WINDOW_HEIGHT, desiredHeight);
+    // We need to measure actual DOM sizes after render to account for font scaling,
+    // optional sub-bars, and any CSS that affects heights. Use requestAnimationFrame
+    // so layout has settled before measuring.
+    requestAnimationFrame(() => {
+        try {
+            // Heights of chrome parts
+            const controlsEl = document.querySelector('.controls');
+            const footerEl = document.querySelector('.footer');
+            const totalsEl = totalsHeaderEl && !totalsHeaderEl.classList.contains('hidden') ? totalsHeaderEl : null;
 
-    requestWindowResize(finalHeight);
+            const controlsH = controlsEl ? controlsEl.getBoundingClientRect().height : 0;
+            const footerH = footerEl ? footerEl.getBoundingClientRect().height : 0;
+            const totalsH = totalsEl ? totalsEl.getBoundingClientRect().height : 0;
+
+            // Determine height for the rows we want to fit using positions inside the dps list
+            let rowsHeight = 0;
+            const items = dpsListContainer ? Array.from(dpsListContainer.querySelectorAll('.data-item')) : [];
+
+            if (effectiveCount === 0) {
+                if (emptyMeterMessage && !emptyMeterMessage.classList.contains('hidden')) {
+                    rowsHeight = emptyMeterMessage.getBoundingClientRect().height;
+                } else {
+                    rowsHeight = ROW_HEIGHT * 2;
+                }
+            } else {
+                const count = Math.min(effectiveCount, items.length);
+                if (count > 0) {
+                    // Sum offsetHeight of the first N items to avoid subtle bounding rect rounding issues
+                    let total = 0;
+                    for (let i = 0; i < count; i++) {
+                        total += items[i].offsetHeight || items[i].getBoundingClientRect().height || ROW_HEIGHT;
+                    }
+                    rowsHeight = total;
+
+                    // If we want more rows than rendered, estimate remaining rows using average row height
+                    if (effectiveCount > items.length) {
+                        const totalRendered = items.reduce(
+                            (sum, el) => sum + (el.offsetHeight || el.getBoundingClientRect().height || ROW_HEIGHT),
+                            0
+                        );
+                        const avg = items.length > 0 ? totalRendered / items.length : ROW_HEIGHT;
+                        rowsHeight += (effectiveCount - items.length) * avg;
+                    }
+                } else {
+                    rowsHeight = effectiveCount * ROW_HEIGHT;
+                }
+            }
+
+            const columnsStyle = columnsContainer ? window.getComputedStyle(columnsContainer) : null;
+            let columnsExtra = 0;
+            if (columnsStyle) {
+                const padTop = parseFloat(columnsStyle.paddingTop) || 0;
+                const padBottom = parseFloat(columnsStyle.paddingBottom) || 0;
+                columnsExtra = padTop + padBottom;
+            }
+
+            // Compute final desired height: controls + (totals + rows + padding) + footer
+            // Add a small safety padding to avoid clipping the bottom of the last row's fill bar
+            const SAFE_BOTTOM_PADDING = 2;
+            const desiredHeight = controlsH + (totalsH + rowsHeight + columnsExtra) + footerH + SAFE_BOTTOM_PADDING;
+            const finalHeight = Math.max(BASE_WINDOW_HEIGHT, Math.round(desiredHeight));
+
+            requestWindowResize(finalHeight);
+        } catch (e) {
+            const fallbackCount = Math.max(0, Math.min(playerCount, autoPlayerCount));
+            const desiredHeight = BASE_WINDOW_HEIGHT + (fallbackCount === 0 ? 2 : fallbackCount) * ROW_HEIGHT;
+            requestWindowResize(Math.max(BASE_WINDOW_HEIGHT, desiredHeight));
+        }
+    });
 }
 
 function requestWindowResize(targetHeight) {
@@ -641,15 +704,15 @@ function handleWindowResized(bounds) {
 }
 
 function setWindowHeightMode(mode, options = {}) {
-    const normalizedMode = 'static'; // force static while auto-fit is hidden
+    const normalizedMode = mode === 'auto' ? 'auto' : 'static';
     const didChange = windowHeightMode !== normalizedMode;
 
     windowHeightMode = normalizedMode;
 
-    // if (windowHeightModeStaticRadio) windowHeightModeStaticRadio.checked = true;
-    // if (windowHeightModeAutoRadio) windowHeightModeAutoRadio.checked = false;
+    if (windowHeightModeStaticRadio) windowHeightModeStaticRadio.checked = normalizedMode === 'static';
+    if (windowHeightModeAutoRadio) windowHeightModeAutoRadio.checked = normalizedMode === 'auto';
 
-    // Hide/disable auto-height controls while feature is hidden
+    // Show/hide auto-height controls
     updateAutoHeightControlsVisibility();
 
     if (!didChange) {
@@ -677,7 +740,12 @@ function setWindowHeightMode(mode, options = {}) {
 }
 
 function updateAutoHeightControlsVisibility() {
-    // Controls hidden; nothing to do
+    if (!autoHeightControls) return;
+    if (windowHeightMode === 'auto') {
+        autoHeightControls.classList.remove('hidden');
+    } else {
+        autoHeightControls.classList.add('hidden');
+    }
 }
 
 function setAutoPlayerCount(value, options = {}) {
@@ -732,11 +800,36 @@ function processDataUpdate(data) {
 
     if (!hasReceivedServerData) {
         hasReceivedServerData = true;
-        transitionOverlayMessage(PROCESSING_PACKET_MESSAGE, false, () => {
+
+        // If the incoming payload already contains visible DPS/HPS entries and the
+        // overlay is currently shown, skip the intro messages and show the meter
+        // immediately to avoid rows appearing behind the overlay and causing
+        // a visual resize flicker.
+        let hasVisibleUser = false;
+        try {
+            for (const [_id, u] of userEntries) {
+                if (!u) continue;
+                const dmg = u.total_damage && typeof u.total_damage.total === 'number' ? u.total_damage.total : 0;
+                const heal = u.total_healing && typeof u.total_healing.total === 'number' ? u.total_healing.total : 0;
+                const tdps = typeof u.total_dps === 'number' ? u.total_dps : 0;
+                const thps = typeof u.total_hps === 'number' ? u.total_hps : 0;
+                if (dmg > 0 || heal > 0 || tdps > 0 || thps > 0) {
+                    hasVisibleUser = true;
+                    break;
+                }
+            }
+        } catch (_) {
+            hasVisibleUser = false;
+        }
+
+        if (hasVisibleUser && statusOverlay && !statusOverlay.classList.contains('hidden')) {
+            // Bypass intro messages and hide overlay immediately (no animation)
+            hideOverlayImmediate();
+        } else {
             setTimeout(() => {
                 tryHideOverlay();
             }, 500);
-        });
+        }
     }
 
     let activityDetected = false;
@@ -914,9 +1007,7 @@ function connectWebSocket() {
         showServerStatus('connected');
         lastWebSocketMessage = Date.now();
 
-        if (!statusOverlay?.classList.contains('hidden') && currentPlayerUid === null) {
-            transitionOverlayMessage(WAITING_FOR_PACKET_MESSAGE, true);
-        }
+        // No waiting-for-packet message: startup overlay handling is simplified.
     });
 
     socket.on('disconnect', () => {
@@ -933,12 +1024,7 @@ function connectWebSocket() {
     socket.on('server_found', (payload) => {
         console.debug('server_found event', payload);
 
-        // Only show "waiting for packet" overlay if:
-        // 1. Overlay is currently visible (we're in startup/connection phase), AND
-        // 2. We don't already have the player UID (first connection, not a server change)
-        if (!statusOverlay?.classList.contains('hidden') && currentPlayerUid === null) {
-            transitionOverlayMessage(WAITING_FOR_PACKET_MESSAGE, true);
-        }
+        // Simplified: do not show a separate 'waiting for packet' overlay step.
     });
 
     socket.on('player_uuid', (payload) => {
@@ -952,11 +1038,9 @@ function connectWebSocket() {
         } catch (_) {}
 
         if (!hasReceivedServerData && !statusOverlay?.classList.contains('hidden')) {
-            transitionOverlayMessage(PROCESSING_PACKET_MESSAGE, false, () => {
-                setTimeout(() => {
-                    tryHideOverlay();
-                }, 500);
-            });
+            setTimeout(() => {
+                tryHideOverlay();
+            }, 500);
         } else {
             console.log('Player UUID received, waiting for combat data...');
         }
@@ -1004,13 +1088,8 @@ function startStartupOverlay() {
     const mainContainer = document.querySelector('.main-container');
     if (mainContainer) mainContainer.classList.add('loading-initial');
 
-    // Show welcome message first (no timer)
-    showOverlayMessage(WELCOME_MESSAGE, false);
-
-    // After welcome duration, show finding server message with timer
-    overlayMessageTimeout = setTimeout(() => {
-        showOverlayMessage(FINDING_SERVER_MESSAGE, true);
-    }, OVERLAY_WELCOME_DURATION);
+    // Directly show the finding-server overlay (skip welcome message)
+    showOverlayMessage(FINDING_SERVER_MESSAGE, true);
 }
 
 function resetOverlayState() {
@@ -1051,6 +1130,36 @@ function showOverlayMessage(text, showTimer = false) {
     statusOverlayText.textContent = text;
     overlayCurrentMessage = text;
     overlayLastChange = Date.now();
+
+    if (text === FINDING_SERVER_MESSAGE) {
+        try {
+            requestAnimationFrame(() => {
+                try {
+                    const controlsEl = document.querySelector('.controls');
+                    const footerEl = document.querySelector('.footer');
+                    const contentEl = statusOverlay?.querySelector('.status-overlay-content');
+
+                    const controlsH = controlsEl ? controlsEl.getBoundingClientRect().height : 0;
+                    const footerH = footerEl ? footerEl.getBoundingClientRect().height : 0;
+                    const contentH = contentEl ? contentEl.getBoundingClientRect().height : 0;
+                    const EXTRA = 12;
+
+                    const computedNeeded = Math.round(controlsH + contentH + footerH + EXTRA);
+                    const screen = SCREEN_DPS;
+                    const stored = getStaticHeightForScreen(screen) || 0;
+                    const target = Math.max(200, stored || 0, computedNeeded);
+
+                    if (window.electronAPI && typeof window.electronAPI.setWindowSize === 'function') {
+                        const w = Math.max(1, Math.round(window.innerWidth));
+                        isProgrammaticResize = true;
+                        pendingResizeHeight = target;
+                        lastRequestedHeight = target;
+                        window.electronAPI.setWindowSize(w, target);
+                    }
+                } catch (_) {}
+            });
+        } catch (_) {}
+    }
 
     // Start or stop timer based on showTimer flag
     if (showTimer) {
@@ -1180,6 +1289,30 @@ function hideOverlay() {
     }, 400);
 }
 
+// Immediately hide overlay without animation (used when first packet already contains DPS rows)
+function hideOverlayImmediate() {
+    if (!statusOverlay || statusOverlay.classList.contains('hidden')) return;
+
+    clearTimeout(overlayMessageTimeout);
+    overlayMessageTimeout = null;
+    clearTimeout(overlayHideTimeout);
+    overlayHideTimeout = null;
+    if (overlayWaitingInterval) {
+        clearInterval(overlayWaitingInterval);
+        overlayWaitingInterval = null;
+    }
+    overlayTimerStartMs = null;
+    overlayCurrentMessage = '';
+    if (statusOverlayTimer) {
+        statusOverlayTimer.classList.add('hidden');
+        statusOverlayTimer.textContent = '';
+    }
+    statusOverlay.classList.add('hidden');
+    statusOverlay.classList.remove('fade-out');
+    const mainContainer = document.querySelector('.main-container');
+    if (mainContainer) mainContainer.classList.remove('loading-initial');
+}
+
 function initialize() {
     startStartupOverlay();
     connectWebSocket();
@@ -1282,9 +1415,15 @@ async function loadSettings() {
                 hideMitigationBar = !!result.data.hideMitigationBar;
                 if (hideMitigationToggle) hideMitigationToggle.checked = hideMitigationBar;
             }
-            // Force static height mode while auto-fit UI is hidden
-            setWindowHeightMode('static', { skipSave: true });
-            // Keep autoPlayerCount internal
+            if (result.data.windowHeightMode !== undefined) {
+                setWindowHeightMode(result.data.windowHeightMode, { skipSave: true });
+            } else {
+                setWindowHeightMode('static', { skipSave: true });
+            }
+            if (result.data.autoPlayerCount !== undefined) {
+                setAutoPlayerCount(result.data.autoPlayerCount, { skipSave: true });
+            }
+            // Load static heights
             if (result.data.staticHeightDps !== undefined) {
                 staticHeightDps = Math.max(BASE_WINDOW_HEIGHT, Math.round(result.data.staticHeightDps));
             }
@@ -1328,10 +1467,22 @@ async function loadSettings() {
         console.warn('Failed to load settings:', error);
     } finally {
         isLoadingSettings = false;
+        // Initialize the auto player count input UI
+        if (autoPlayerCountInput) {
+            autoPlayerCountInput.value = String(autoPlayerCount);
+        }
         updateAutoHeightControlsVisibility();
         if (windowHeightMode === 'auto') {
             lastRequestedHeight = null;
             updateAll();
+        } else {
+            // Apply stored static height for the currently visible screen so text is visible on load
+            try {
+                lastRequestedHeight = null;
+                ensureHeightForScreen(getCurrentScreen());
+            } catch (e) {
+                // ignore
+            }
         }
     }
 }
@@ -1690,7 +1841,29 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Height mode controls hidden
+    // Height mode radio buttons (DPS view only)
+    if (windowHeightModeStaticRadio && windowHeightModeAutoRadio) {
+        windowHeightModeStaticRadio.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                setWindowHeightMode('static');
+            }
+        });
+        windowHeightModeAutoRadio.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                setWindowHeightMode('auto');
+            }
+        });
+    }
+
+    // Auto player count input
+    if (autoPlayerCountInput) {
+        autoPlayerCountInput.addEventListener('change', (e) => {
+            setAutoPlayerCount(e.target.value);
+        });
+        autoPlayerCountInput.addEventListener('input', (e) => {
+            setAutoPlayerCount(e.target.value, { skipSave: true });
+        });
+    }
 
     if (window.electronAPI && typeof window.electronAPI.onWindowResized === 'function') {
         window.electronAPI.onWindowResized((bounds) => {

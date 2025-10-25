@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.4.0] - TBA
+
+### Added
+- **UI Icons**: Changed labels to icons for consistency.
+- **Dynamic Height**: The overlay height now adjusts based on the number of players displayed (can be toggled in settings).
+
+### Changed
+- **Welcome Screen**: Removed loading messages for a cleaner look.
+
+## [2.3.1] - 2025-10-22
+
+### Added
+
+- **Auto release**: Automatically create release builds on tag push.
+- **Linting**
+
 ## [2.3.0] - 2025-10-22
 
 ### Added

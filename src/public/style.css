@@ -250,6 +250,22 @@ body.font-large {
     flex-direction: column;
 }
 
+.empty-meter-message {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+    height: 24px;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    background-color: rgba(0, 0, 0, 0.3);
+    border: none;
+    border-radius: 0;
+    margin: 0;
+    gap: 8px;
+}
+
 .settings-container {
     flex-grow: 1;
     padding: 16px;
@@ -520,7 +536,7 @@ body.font-large {
     top: 42px;
     left: 0;
     right: 0;
-    bottom: 22px;
+    bottom: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -531,12 +547,13 @@ body.font-large {
     opacity: 1;
     pointer-events: none;
     z-index: 10;
+    padding-bottom: 24px;
+    box-sizing: border-box;
+    overflow: auto;
 }
 
-/* Ensure initial content area has a usable minimum height during loading
-   to avoid clipping when there are no users and auto-fit would shrink */
 .main-container.loading-initial {
-    min-height: 220px; /* header (25) + overlay space + footer (18) */
+    min-height: 220px;
 }
 
 .status-overlay.hidden {
@@ -550,7 +567,7 @@ body.font-large {
 }
 
 .status-overlay-content {
-    padding: 20px 32px;
+    padding: 24px 32px;
     border-radius: 12px;
     background: rgba(24, 28, 32, 0.75);
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
@@ -560,6 +577,8 @@ body.font-large {
     color: #f9fafb;
     text-align: center;
     letter-spacing: 0.3px;
+    flex-shrink: 0;
+    white-space: normal;
 }
 
 #statusOverlayText {
