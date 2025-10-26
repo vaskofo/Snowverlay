@@ -5,6 +5,8 @@
 Snowverlay - DPS Meter/Parser for Blue Protocol Star Resonance
 Provides a useful GUI to track DPS / HPS for nearby players with a simple skill breakdown per player
 
+Wanna chat? Add me in game: Snow#18647214
+
 ## Virus Disclaimer
 
 Windows defender or even the browser might consider the release binary a virus likely due to the fact that the app captures network packets.
@@ -33,7 +35,7 @@ You'll need to have the following software installed:
 - Customizable hotkeys
 - Skill icons
 - More skill info on breakdown (crit rate, luck rate)
-- Class name on skill breakdown
+- ~~Class name on skill breakdown~~
 - Self updater
 - Export to excel/CSV
 - Players in AOI bubble

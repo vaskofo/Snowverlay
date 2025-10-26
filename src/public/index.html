@@ -55,11 +55,15 @@
                 </div>
                 <div id="skillDetailsContainer" class="skill-details-container hidden">
                     <div class="skill-details-header">
-                        <button id="backButton" onclick="backToMain()" class="back-button">← Back</button>
                         <div class="skill-details-user-info">
-                            <span id="skillDetailsUserName" class="skill-details-name"></span>
+                            <img id="skillDetailsClassIcon" class="class-icon skill-class-icon hidden" src="" alt="" />
+                            <div style="display: flex; flex-direction: column">
+                                <span id="skillDetailsUserName" class="skill-details-name"></span>
+                                <span id="skillDetailsClassName" class="skill-details-classname"></span>
+                            </div>
                             <span id="skillDetailsUserStats" class="skill-details-stats"></span>
                         </div>
+                        <button id="backButton" onclick="backToMain()" class="back-button">← Back</button>
                     </div>
                     <div id="skillDetailsList" class="skill-details-list"></div>
                 </div>

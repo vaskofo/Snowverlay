@@ -13,9 +13,6 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
-body.font-small {
-}
-
 body.font-normal {
     /* Approx 1.15x scale */
     zoom: 1.15;
@@ -430,6 +427,19 @@ body.font-large {
     height: 18px;
     object-fit: contain;
     flex-shrink: 0;
+}
+
+.skill-class-icon {
+    width: 20px;
+    height: 20px;
+    margin-right: 6px;
+}
+
+.skill-details-classname {
+    font-size: 12px;
+    color: #bfc7d6;
+    line-height: 1;
+    margin-top: 2px;
 }
 
 .rank {

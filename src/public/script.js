@@ -43,6 +43,26 @@ function getClassColor(profession) {
     return null;
 }
 
+function parseProfessionString(profStr) {
+    if (!profStr) return { main: '', spec: '' };
+    let s = String(profStr).trim();
+    if (s.includes('-')) {
+        const parts = s.split('-');
+        const main = parts[0].trim();
+        const rest = parts.slice(1).join('-').trim();
+        const m = rest.match(/\(?([^)]*)\)?/);
+        const spec = m && m[1] ? m[1].trim() : rest.replace(/[()]/g, '').trim();
+        return { main, spec };
+    }
+    const m = s.match(/^([^()]+)\s*\(?([^)]*)\)?$/);
+    if (m) {
+        const main = (m[1] || '').trim();
+        const spec = (m[2] || '').trim();
+        return { main, spec };
+    }
+    return { main: s, spec: '' };
+}
+
 function getCurrentPlayerColor() {
     return { dps: '#fbbf24', hps: '#fbbf24' }; // amber
 }
@@ -67,6 +87,8 @@ const skillDetailsContainer = document.getElementById('skillDetailsContainer');
 const skillDetailsList = document.getElementById('skillDetailsList');
 const skillDetailsUserName = document.getElementById('skillDetailsUserName');
 const skillDetailsUserStats = document.getElementById('skillDetailsUserStats');
+const skillDetailsClassIcon = document.getElementById('skillDetailsClassIcon');
+const skillDetailsClassName = document.getElementById('skillDetailsClassName');
 const settingsContainer = document.getElementById('settingsContainer');
 const helpContainer = document.getElementById('helpContainer');
 const passthroughTitle = document.getElementById('passthroughTitle');
@@ -1722,10 +1744,43 @@ async function fetchAndRenderSkill(userId) {
         } else if (user?.name) {
             displayName = user.name;
         }
-        skillDetailsUserName.textContent = displayName;
-        skillDetailsUserStats.textContent = user.total_damage
-            ? `${formatNumber(user.total_damage.total)} (${formatNumber(user.total_dps)} DPS)`
-            : '';
+        if (skillDetailsUserName) skillDetailsUserName.textContent = displayName;
+        if (skillDetailsUserStats)
+            skillDetailsUserStats.textContent = user.total_damage
+                ? `${formatNumber(user.total_damage.total)} (${formatNumber(user.total_dps)} DPS)`
+                : '';
+
+        try {
+            const professionString =
+                allUsers[userId] && allUsers[userId].profession ? allUsers[userId].profession.trim() : '';
+            const parsed = parseProfessionString(professionString || '');
+            const mainProfession = parsed.main || '';
+            const spec = parsed.spec || '';
+            const knownClass = mainProfession && getClassColor(mainProfession);
+            if (knownClass && skillDetailsClassIcon) {
+                const iconFileName = mainProfession.toLowerCase().replace(/ /g, '_') + '.png';
+                skillDetailsClassIcon.src = `assets/${iconFileName}`;
+                skillDetailsClassIcon.alt = spec ? `${mainProfession} - ${spec}` : mainProfession;
+                skillDetailsClassIcon.classList.remove('hidden');
+                skillDetailsClassIcon.onerror = function () {
+                    this.classList.add('hidden');
+                };
+            } else if (skillDetailsClassIcon) {
+                skillDetailsClassIcon.classList.add('hidden');
+                skillDetailsClassIcon.src = '';
+                skillDetailsClassIcon.alt = '';
+            }
+
+            if (skillDetailsClassName) {
+                if (knownClass) {
+                    skillDetailsClassName.textContent = spec ? `${mainProfession} - ${spec}` : mainProfession;
+                    skillDetailsClassName.classList.remove('hidden');
+                } else {
+                    skillDetailsClassName.textContent = '';
+                    skillDetailsClassName.classList.add('hidden');
+                }
+            }
+        } catch (e) {}
 
         // Convert skills object to array and sort by total damage
         const skillsArray = Object.entries(userData.skills || {}).map(([skillId, skill]) => ({

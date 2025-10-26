@@ -5,6 +5,7 @@
 ### Added
 - **UI Icons**: Changed labels to icons for consistency.
 - **Dynamic Height**: The overlay height now adjusts based on the number of players displayed (can be toggled in settings).
+- **Skill Breakdown**: Added class name, spec and icon.
 
 ### Changed
 - **Welcome Screen**: Removed most loading messages.
