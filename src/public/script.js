@@ -103,6 +103,10 @@ const serverStatus = document.getElementById('serverStatus');
 const opacitySlider = document.getElementById('opacitySlider');
 const classColorToggle = document.getElementById('classColorToggle');
 const globalShortcutsToggle = document.getElementById('globalShortcutsToggle');
+const disableUiFreezeToggle = document.getElementById('disableUiFreezeToggle');
+const autoClearServerChangeToggle = document.getElementById('autoClearServerChangeToggle');
+const autoClearTimeoutInput = document.getElementById('autoClearTimeoutInput');
+const disableUserTimeoutToggle = document.getElementById('disableUserTimeoutToggle');
 const hideHpsToggle = document.getElementById('hideHpsToggle');
 const hideMitigationToggle = document.getElementById('hideMitigationToggle');
 const windowHeightModeStaticRadio = document.getElementById('windowHeightModeStatic');
@@ -142,6 +146,9 @@ let staticHeightDps = null;
 let staticHeightSettings = null;
 let staticHeightSkills = null;
 let enableGlobalShortcuts = false;
+let disableUiFreezeOnInactivity = false;
+let autoClearOnServerChange = true;
+let autoClearTimeoutSeconds = 0;
 // Track interval/timer IDs for cleanup on unload
 let checkConnectionIntervalId = null;
 let playerUidIntervalId = null;
@@ -151,6 +158,15 @@ let totalsIntervalId = null; // periodic update for totals header
 let dpsStartTimeMs = null; // when first damage was detected after last clear
 let pausedAccumulatedMs = 0; // total paused duration to subtract from elapsed
 let pausedStartedAtMs = null; // when current pause started
+// Server-provided group clock meta
+let serverMeta = {
+    groupStartTimeMs: null,
+    groupEffectiveElapsedMs: 0,
+    lastGroupActiveAtMs: 0,
+    inactivityGraceMs: 1000,
+    sessionStartTime: null,
+    paused: false,
+};
 // Track last observed activity time (damage/healing increase)
 let lastActivityAtMs = null;
 // Each screen uses its own static height (staticHeightDps/staticHeightSettings/staticHeightSkills).
@@ -851,7 +867,6 @@ function setAutoPlayerCount(value, options = {}) {
 }
 
 function processDataUpdate(data) {
-    if (isPaused) return;
     if (!data || typeof data !== 'object') {
         console.warn('Received invalid data payload:', data);
         return;
@@ -861,13 +876,31 @@ function processDataUpdate(data) {
         return;
     }
 
+    if (data.meta && typeof data.meta === 'object') {
+        try {
+            serverMeta = {
+                groupStartTimeMs: data.meta.groupStartTimeMs ?? serverMeta.groupStartTimeMs,
+                groupEffectiveElapsedMs: data.meta.groupEffectiveElapsedMs ?? serverMeta.groupEffectiveElapsedMs,
+                lastGroupActiveAtMs: data.meta.lastGroupActiveAtMs ?? serverMeta.lastGroupActiveAtMs,
+                inactivityGraceMs: data.meta.inactivityGraceMs ?? serverMeta.inactivityGraceMs,
+                sessionStartTime: data.meta.sessionStartTime ?? serverMeta.sessionStartTime,
+                paused: !!data.meta.paused,
+            };
+            if (typeof serverMeta.paused === 'boolean') {
+                isPaused = serverMeta.paused;
+                if (pauseButton) pauseButton.textContent = isPaused ? '▶️' : '⏸️';
+                showServerStatus(isPaused ? 'paused' : 'connected');
+            }
+        } catch (_) {}
+    }
+
     const userEntries = Object.entries(data.user);
     if (data.reset === true) {
         handleServerReset(data.reason || 'server');
         return;
     }
     if (userEntries.length === 0) {
-        if (Object.keys(allUsers).length > 0) {
+        if (Object.keys(allUsers).length > 0 && !autoClearOnServerChange) {
             handleServerReset(data.reason || 'empty');
         }
         return;
@@ -993,10 +1026,17 @@ async function clearData() {
             allUsers = {};
             userColors = {};
             userColorSource = {};
-            // Reset DPS header/timer state
             dpsStartTimeMs = null;
             pausedAccumulatedMs = 0;
             pausedStartedAtMs = null;
+            serverMeta = {
+                groupStartTimeMs: null,
+                groupEffectiveElapsedMs: 0,
+                lastGroupActiveAtMs: 0,
+                inactivityGraceMs: 1000,
+                sessionStartTime: null,
+                paused: isPaused,
+            };
             lastActivityAtMs = null;
             updateTotalsHeader();
             // Note: currentPlayerUid is preserved across clears
@@ -1013,16 +1053,22 @@ async function clearData() {
     }
 }
 
-function togglePause() {
-    isPaused = !isPaused;
-    pauseButton.innerText = isPaused ? 'Resume' : 'Pause';
-    showServerStatus(isPaused ? 'paused' : 'connected');
-    // Track paused duration for accurate DPS elapsed time
-    if (isPaused) {
-        if (pausedStartedAtMs === null) pausedStartedAtMs = Date.now();
-    } else if (pausedStartedAtMs !== null) {
-        pausedAccumulatedMs += Math.max(0, Date.now() - pausedStartedAtMs);
-        pausedStartedAtMs = null;
+async function togglePause() {
+    try {
+        const next = !isPaused;
+        const resp = await fetch(`http://${SERVER_URL}/api/pause`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paused: next }),
+        });
+        const result = await resp.json();
+        if (result.code === 0) {
+            isPaused = !!result.paused;
+            if (pauseButton) pauseButton.textContent = isPaused ? '▶️' : '⏸️';
+            showServerStatus(isPaused ? 'paused' : 'connected');
+        }
+    } catch (e) {
+        console.error('Failed to toggle pause:', e);
     }
 }
 
@@ -1098,7 +1144,7 @@ function connectWebSocket() {
     // Custom server lifecycle events emitted by backend
     socket.on('server_found', (payload) => {
         try {
-            if (!hasReceivedServerData && statusOverlay && !statusOverlay.classList.contains('hidden')) {
+            if (statusOverlay && !statusOverlay.classList.contains('hidden')) {
                 setTimeout(() => {
                     tryHideOverlay();
                 }, 200);
@@ -1415,13 +1461,12 @@ function initialize() {
     startStartupOverlay();
     connectWebSocket();
     checkConnectionIntervalId = setInterval(checkConnection, WEBSOCKET_RECONNECT_INTERVAL);
-    fetchCurrentPlayerUid(); // Fetch current player UID on startup
-    // Periodically re-fetch current player UID in case it wasn't available at startup
-    playerUidIntervalId = setInterval(fetchCurrentPlayerUid, 10000); // Check every 10 seconds
-    loadSettings(); // Load saved settings on startup
-    updateDateTime(); // Initial update
-    dateTimeIntervalId = setInterval(updateDateTime, 1000); // Update every second
-    // Unhide and start totals header updates
+    fetchCurrentPlayerUid();
+    playerUidIntervalId = setInterval(fetchCurrentPlayerUid, 10000);
+    loadSettings();
+    fetchPauseState();
+    updateDateTime();
+    dateTimeIntervalId = setInterval(updateDateTime, 1000);
     if (totalsHeaderEl) totalsHeaderEl.classList.remove('hidden');
     updateTotalsHeader();
     totalsIntervalId = setInterval(updateTotalsHeader, 500);
@@ -1555,10 +1600,24 @@ async function loadSettings() {
             if (result.data.enableGlobalShortcuts !== undefined) {
                 enableGlobalShortcuts = !!result.data.enableGlobalShortcuts;
                 if (globalShortcutsToggle) globalShortcutsToggle.checked = enableGlobalShortcuts;
-                // Inform main about global shortcut preference
                 if (typeof window.electronAPI?.toggleGlobalShortcuts === 'function') {
                     window.electronAPI.toggleGlobalShortcuts(enableGlobalShortcuts);
                 }
+            }
+            if (result.data.disableUiFreezeOnInactivity !== undefined) {
+                disableUiFreezeOnInactivity = !!result.data.disableUiFreezeOnInactivity;
+                if (disableUiFreezeToggle) disableUiFreezeToggle.checked = disableUiFreezeOnInactivity;
+            }
+            if (result.data.autoClearOnServerChange !== undefined) {
+                autoClearOnServerChange = !!result.data.autoClearOnServerChange;
+                if (autoClearServerChangeToggle) autoClearServerChangeToggle.checked = autoClearOnServerChange;
+            }
+            if (result.data.autoClearTimeoutSeconds !== undefined) {
+                autoClearTimeoutSeconds = Math.max(0, parseInt(result.data.autoClearTimeoutSeconds, 10) || 0);
+                if (autoClearTimeoutInput) autoClearTimeoutInput.value = String(autoClearTimeoutSeconds);
+            }
+            if (result.data.disableUserTimeout !== undefined) {
+                if (disableUserTimeoutToggle) disableUserTimeoutToggle.checked = !!result.data.disableUserTimeout;
             }
         }
     } catch (error) {
@@ -1604,6 +1663,10 @@ async function saveSettings() {
             useClassColors: !!useClassColors,
             backgroundOpacity: opacitySlider ? opacitySlider.value : undefined,
             enableGlobalShortcuts: !!enableGlobalShortcuts,
+            disableUiFreezeOnInactivity: !!disableUiFreezeOnInactivity,
+            autoClearOnServerChange: !!autoClearOnServerChange,
+            autoClearTimeoutSeconds: autoClearTimeoutSeconds,
+            disableUserTimeout: !!(disableUserTimeoutToggle ? disableUserTimeoutToggle.checked : undefined),
         };
         await fetch(`http://${SERVER_URL}/api/settings`, {
             method: 'POST',
@@ -1656,6 +1719,18 @@ async function fetchCurrentPlayerUid() {
     } catch (error) {
         console.warn('Failed to fetch current player UID:', error);
     }
+}
+
+async function fetchPauseState() {
+    try {
+        const resp = await fetch(`http://${SERVER_URL}/api/pause`);
+        const result = await resp.json();
+        if (result && result.code === 0) {
+            isPaused = !!result.paused;
+            if (pauseButton) pauseButton.textContent = isPaused ? '▶️' : '⏸️';
+            showServerStatus(isPaused ? 'paused' : 'connected');
+        }
+    } catch (e) {}
 }
 
 function toggleSettings() {
@@ -1952,7 +2027,37 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Initialize hide HPS toggle
+    if (disableUiFreezeToggle) {
+        disableUiFreezeOnInactivity = disableUiFreezeToggle.checked;
+        disableUiFreezeToggle.addEventListener('change', (e) => {
+            disableUiFreezeOnInactivity = e.target.checked;
+            saveSettings();
+            updateAll();
+        });
+    }
+
+    if (autoClearServerChangeToggle) {
+        autoClearOnServerChange = autoClearServerChangeToggle.checked;
+        autoClearServerChangeToggle.addEventListener('change', (e) => {
+            autoClearOnServerChange = e.target.checked;
+            saveSettings();
+        });
+    }
+
+    if (disableUserTimeoutToggle) {
+        disableUserTimeoutToggle.addEventListener('change', () => {
+            saveSettings();
+        });
+    }
+
+    if (autoClearTimeoutInput) {
+        autoClearTimeoutSeconds = parseInt(autoClearTimeoutInput.value, 10) || 0;
+        autoClearTimeoutInput.addEventListener('change', (e) => {
+            autoClearTimeoutSeconds = Math.max(0, parseInt(e.target.value, 10) || 0);
+            saveSettings();
+        });
+    }
+
     if (hideHpsToggle) {
         hideHpsBar = hideHpsToggle.checked;
         hideHpsToggle.addEventListener('change', (e) => {
@@ -2136,19 +2241,29 @@ function formatDurationShort(ms) {
 
 function updateTotalsHeader() {
     if (!totalsHeaderEl) return;
-    // Freeze totals header during inactivity grace period
     if (shouldFreezeUi()) return;
     const usersArray = Object.values(allUsers);
+    const visibleUsers = usersArray.filter((u) => (u?.total_dps || 0) > 0 || (u?.total_hps || 0) > 0);
     const totalDamage = usersArray.reduce((sum, u) => sum + (u?.total_damage?.total || 0), 0);
-    // Start the timer if we see first damage
-    if (totalDamage > 0 && dpsStartTimeMs === null) {
-        dpsStartTimeMs = Date.now();
-        pausedAccumulatedMs = 0;
-        pausedStartedAtMs = null;
-        if (lastActivityAtMs === null) lastActivityAtMs = dpsStartTimeMs;
+    if (visibleUsers.length === 0) {
+        if (totalDamageEl) totalDamageEl.textContent = '0';
+        if (totalDpsEl) totalDpsEl.textContent = '0 DPS';
+        if (dpsDurationEl) dpsDurationEl.textContent = '0:00';
+        return;
     }
-    const elapsedMs = getDpsElapsedMs();
-    const elapsedSec = elapsedMs / 1000;
+    const elapsedMsServer =
+        serverMeta && typeof serverMeta.groupEffectiveElapsedMs === 'number' ? serverMeta.groupEffectiveElapsedMs : 0;
+    let elapsedMs = elapsedMsServer;
+    if (!elapsedMs) {
+        if (totalDamage > 0 && dpsStartTimeMs === null) {
+            dpsStartTimeMs = Date.now();
+            pausedAccumulatedMs = 0;
+            pausedStartedAtMs = null;
+            if (lastActivityAtMs === null) lastActivityAtMs = dpsStartTimeMs;
+        }
+        elapsedMs = getDpsElapsedMs();
+    }
+    const elapsedSec = elapsedMs > 0 ? elapsedMs / 1000 : 0;
     const totalDps = elapsedSec > 0 ? totalDamage / elapsedSec : 0;
 
     if (totalDamageEl) totalDamageEl.textContent = formatNumber(totalDamage);
@@ -2175,9 +2290,8 @@ function maybeResetIfEmpty() {
 
 // Determine if the frontend should freeze UI updates due to inactivity
 function shouldFreezeUi() {
-    // Only freeze if a DPS session has started and we've recorded activity before
+    if (disableUiFreezeOnInactivity) return false;
     if (dpsStartTimeMs === null || lastActivityAtMs === null) return false;
-    // If paused manually, don't freeze due to inactivity
     if (isPaused) return false;
     const now = Date.now();
     return now - lastActivityAtMs >= INACTIVITY_GRACE_MS;

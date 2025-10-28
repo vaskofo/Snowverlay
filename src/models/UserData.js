@@ -155,7 +155,11 @@ export class UserData {
     }
 
     /** 计算总DPS */
-    getTotalDps() {
+    getTotalDps(effectiveTimeMs) {
+        if (effectiveTimeMs !== undefined) {
+            const effectiveSeconds = effectiveTimeMs > 0 ? effectiveTimeMs / 1000 : 0;
+            return effectiveSeconds > 0 ? this.damageStats.stats.total / effectiveSeconds : 0;
+        }
         return this.damageStats.getTotalPerSecond();
     }
 

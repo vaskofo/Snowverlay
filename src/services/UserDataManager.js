@@ -32,10 +32,11 @@ class UserDataManager {
         this.lastLogTime = 0;
         // Group activity clock: paused when no one deals DPS, resumes when any DPS occurs
         this.groupStartTimeMs = Date.now();
-        this.groupEffectiveElapsedMs = 0; // accumulates only while group considered "active"
-        this.lastGroupActiveAtMs = 0; // last time any DPS occurred
+        this.groupEffectiveElapsedMs = 0;
+        this.lastGroupActiveAtMs = 0;
         this._lastGroupTickMs = Date.now();
-        this.inactivityGraceMs = 5000; // matches frontend INACTIVITY_GRACE_MS
+        this.inactivityGraceMs = 1000;
+        this.pendingClearOnNextPacket = false;
         setInterval(() => {
             if (this.lastLogTime < this.lastAutoSaveTime) return;
             this.lastAutoSaveTime = Date.now();
@@ -56,6 +57,9 @@ class UserDataManager {
     }
 
     cleanUpInactiveUsers() {
+        if (config.GLOBAL_SETTINGS.disableUserTimeout) {
+            return;
+        }
         const inactiveThreshold = 60 * 1000;
         const currentTime = Date.now();
 
@@ -151,9 +155,17 @@ class UserDataManager {
     addDamage(uid, skillId, element, damage, isCrit, isLucky, isCauseLucky, hpLessenValue = 0, targetUid) {
         if (config.IS_PAUSED) return;
         if (config.GLOBAL_SETTINGS.onlyRecordEliteDummy && targetUid !== 75) return;
+        if (this.pendingClearOnNextPacket) {
+            this.pendingClearOnNextPacket = false;
+            this.clearAll('server-change');
+            logger.info('Pending clear executed on first DPS packet after server change.');
+        }
         this.checkTimeoutClear();
-        // Mark group as active (DPS happened now)
+        const wasInactive = this.lastGroupActiveAtMs === 0;
         this.lastGroupActiveAtMs = Date.now();
+        if (wasInactive) {
+            this._lastGroupTickMs = Date.now();
+        }
         const user = this.getUser(uid);
         // logger.info(`User ${uid} used skill ${skillId} dealing ${damage} ${element} damage${isCrit ? ' (crit)' : ''}${isLucky ? ' (lucky)' : ''}${isCauseLucky ? ' (cause lucky)' : ''}${hpLessenValue ? `, HP lessen value: ${hpLessenValue}` : ''}`);
         user.addDamage(skillId, element, damage, isCrit, isLucky, isCauseLucky, hpLessenValue);
@@ -274,13 +286,10 @@ class UserDataManager {
     }
 
     updateAllRealtimeDps() {
-        // Advance the shared group-effective clock only when we've had DPS within the grace window
         const now = Date.now();
         const delta = Math.max(0, now - (this._lastGroupTickMs || now));
-        if (delta > 0) {
-            if (this.lastGroupActiveAtMs && now - this.lastGroupActiveAtMs <= this.inactivityGraceMs) {
-                this.groupEffectiveElapsedMs += delta;
-            }
+        if (this.users.size > 0 && delta > 0 && !config.IS_PAUSED) {
+            this.groupEffectiveElapsedMs += delta;
         }
         this._lastGroupTickMs = now;
 
@@ -303,18 +312,22 @@ class UserDataManager {
 
     getAllUsersData() {
         const result = {};
-        const effectiveSeconds = this.groupEffectiveElapsedMs > 0 ? this.groupEffectiveElapsedMs / 1000 : 0;
         for (const [uid, user] of this.users.entries()) {
             const summary = user.getSummary();
-            // Preserve personal DPS based on personal activity window, but override total_dps
-            // to use the shared group-effective elapsed time so rows update on resume.
-            const totalDamage = summary?.total_damage?.total || 0;
-            const groupDps = effectiveSeconds > 0 ? totalDamage / effectiveSeconds : 0;
-            summary.personal_total_dps = summary.total_dps; // keep original for reference
-            summary.total_dps = groupDps;
+            summary.total_dps = user.getTotalDps(this.groupEffectiveElapsedMs);
             result[uid] = summary;
         }
         return result;
+    }
+
+    getMeta() {
+        return {
+            groupStartTimeMs: this.groupStartTimeMs,
+            groupEffectiveElapsedMs: this.groupEffectiveElapsedMs,
+            lastGroupActiveAtMs: this.lastGroupActiveAtMs,
+            inactivityGraceMs: this.inactivityGraceMs,
+            sessionStartTime: this.startTime,
+        };
     }
 
     getAllEnemiesData() {
@@ -359,11 +372,11 @@ class UserDataManager {
             this.startTime = Date.now();
             this.lastAutoSaveTime = 0;
             this.lastLogTime = 0;
-            // Reset group activity tracking
             this.groupStartTimeMs = Date.now();
             this.groupEffectiveElapsedMs = 0;
             this.lastGroupActiveAtMs = 0;
             this._lastGroupTickMs = Date.now();
+            this.pendingClearOnNextPacket = false;
 
             // Persist previous session data asynchronously but do not block
             this.saveAllUserData(usersToSave, saveStartTime).catch((e) => {
@@ -447,9 +460,15 @@ class UserDataManager {
     }
 
     checkTimeoutClear() {
-        if (!config.GLOBAL_SETTINGS.autoClearOnTimeout || this.lastLogTime === 0 || this.users.size === 0) return;
+        if (this.pendingClearOnNextPacket) return;
+        const timeoutSeconds = config.GLOBAL_SETTINGS.autoClearTimeoutSeconds;
+        if (!timeoutSeconds || timeoutSeconds <= 0 || this.users.size === 0) return;
         const currentTime = Date.now();
-        if (this.lastLogTime && currentTime - this.lastLogTime > 15000) {
+        const timeoutMs = timeoutSeconds * 1000;
+        const lastActivity = this.lastGroupActiveAtMs || 0;
+        const lastLog = this.lastLogTime || 0;
+        const basis = Math.max(lastActivity, lastLog);
+        if (basis > 0 && currentTime - basis > timeoutMs) {
             this.clearAll('timeout');
             logger.info('Timeout reached, statistics cleared!');
         }

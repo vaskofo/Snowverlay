@@ -14,14 +14,12 @@ const decoders = cap.decoders;
 const PROTOCOL = decoders.PROTOCOL;
 
 const clearDataOnServerChange = () => {
-    // Always refresh enemy cache and clear user data when the setting is enabled.
     userDataManager.refreshEnemyCache();
-    if (!config.GLOBAL_SETTINGS.autoClearOnServerChange) return;
-    try {
-        userDataManager.clearAll('server-change');
-        logger.info('Server changed, statistics cleared!');
-    } catch (e) {
-        logger.warn('Failed to clear data on server change: ' + e.message);
+    if (config.GLOBAL_SETTINGS.autoClearOnServerChange) {
+        userDataManager.pendingClearOnNextPacket = true;
+        logger.info('Server changed, clear pending on next DPS packet.');
+    } else {
+        logger.info('Server changed, auto-clear disabled.');
     }
 };
 

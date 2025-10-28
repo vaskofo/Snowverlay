@@ -6,10 +6,14 @@
 - **UI Icons**: Changed labels to icons for consistency.
 - **Dynamic Height**: The overlay height now adjusts based on the number of players displayed (can be toggled in settings).
 - **Skill Breakdown**: Added class name, spec and icon.
+- **Settings**: Added settings to disable auto-pause, auto-clear on server change or inactivity.
 
 ### Changed
 - **Welcome Screen**: Removed most loading messages.
 - **Auto-resize Logic**: Improved logic for resizing the overlay when switching screens.
+
+### Fixed
+- **DPS Calculation**: Fixed issues with delayed clears and pause detection affecting DPS accuracy.
 
 ## [2.3.1] - 2025-10-22
 

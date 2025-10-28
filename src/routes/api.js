@@ -4,8 +4,9 @@ import logger from '../services/Logger.js';
 import { promises as fsPromises } from 'fs';
 import userDataManager from '../services/UserDataManager.js';
 import { PacketProcessor } from '../services/PacketProcessor.js';
+import { config } from '../config.js';
 
-export function createApiRouter(isPaused, SETTINGS_PATH, globalSettings = {}) {
+export function createApiRouter(SETTINGS_PATH, globalSettings = {}) {
     const router = express.Router();
 
     // Middleware to parse JSON requests
@@ -14,9 +15,11 @@ export function createApiRouter(isPaused, SETTINGS_PATH, globalSettings = {}) {
     // GET all user data
     router.get('/data', (req, res) => {
         const userData = userDataManager.getAllUsersData();
+        const meta = userDataManager.getMeta();
         const data = {
             code: 0,
             user: userData,
+            meta: { ...meta, paused: !!config.IS_PAUSED },
         };
         res.json(data);
     });
@@ -43,13 +46,14 @@ export function createApiRouter(isPaused, SETTINGS_PATH, globalSettings = {}) {
 
     // Pause/Resume statistics
     router.post('/pause', (req, res) => {
-        const { paused } = req.body;
-        isPaused = paused;
-        logger.info(`Statistics ${isPaused ? 'paused' : 'resumed'}!`);
+        const { paused } = req.body || {};
+        const next = !!paused;
+        config.IS_PAUSED = next;
+        logger.info(`Statistics ${next ? 'paused' : 'resumed'}!`);
         res.json({
             code: 0,
-            msg: `Statistics ${isPaused ? 'paused' : 'resumed'}!`,
-            paused: isPaused,
+            msg: `Statistics ${next ? 'paused' : 'resumed'}!`,
+            paused: next,
         });
     });
 
@@ -57,7 +61,7 @@ export function createApiRouter(isPaused, SETTINGS_PATH, globalSettings = {}) {
     router.get('/pause', (req, res) => {
         res.json({
             code: 0,
-            paused: isPaused,
+            paused: !!config.IS_PAUSED,
         });
     });
 
@@ -274,8 +278,25 @@ export function createApiRouter(isPaused, SETTINGS_PATH, globalSettings = {}) {
             if (newSettings.enableGlobalShortcuts !== undefined) {
                 newSettings.enableGlobalShortcuts = !!newSettings.enableGlobalShortcuts;
             }
+            if (newSettings.disableUiFreezeOnInactivity !== undefined) {
+                newSettings.disableUiFreezeOnInactivity = !!newSettings.disableUiFreezeOnInactivity;
+            }
+            if (newSettings.autoClearOnServerChange !== undefined) {
+                newSettings.autoClearOnServerChange = !!newSettings.autoClearOnServerChange;
+            }
+            if (newSettings.autoClearTimeoutSeconds !== undefined) {
+                const timeout = Number.parseInt(newSettings.autoClearTimeoutSeconds, 10);
+                if (Number.isNaN(timeout) || timeout < 0) {
+                    delete newSettings.autoClearTimeoutSeconds;
+                } else {
+                    newSettings.autoClearTimeoutSeconds = Math.min(300, Math.max(0, timeout));
+                }
+            }
 
-            // Merge into provided globalSettings object
+            if (newSettings.disableUserTimeout !== undefined) {
+                newSettings.disableUserTimeout = !!newSettings.disableUserTimeout;
+            }
+
             Object.assign(globalSettings, newSettings);
 
             // Persist to disk

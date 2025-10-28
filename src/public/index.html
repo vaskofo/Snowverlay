@@ -87,6 +87,37 @@
                             When enabled, use Right Ctrl + Arrow Keys to move/resize window even when not focused.
                         </div>
                     </div>
+                    <div class="settings-option">
+                        <label for="disableUiFreezeToggle">Disable auto-pause on inactivity</label>
+                        <input type="checkbox" id="disableUiFreezeToggle" />
+                        <div style="font-size: 11px; color: #ccc; margin-top: 4px">
+                            When enabled, DPS numbers will continue updating even during inactivity (useful if you
+                            prefer live updates).
+                        </div>
+                    </div>
+                    <div class="settings-option">
+                        <label for="autoClearServerChangeToggle">Auto-clear on server change</label>
+                        <input type="checkbox" id="autoClearServerChangeToggle" checked />
+                        <div style="font-size: 11px; color: #ccc; margin-top: 4px">
+                            When enabled, DPS data clears automatically on the next damage packet after changing servers
+                            (allows viewing final results before clear).
+                        </div>
+                    </div>
+                    <div class="settings-option">
+                        <label for="disableUserTimeoutToggle">Disable user timeout</label>
+                        <input type="checkbox" id="disableUserTimeoutToggle" checked />
+                        <div style="font-size: 11px; color: #ccc; margin-top: 4px">
+                            When enabled, users are not removed due to inactivity. Uncheck to auto-remove users after
+                            60s of inactivity.
+                        </div>
+                    </div>
+                    <div class="settings-option">
+                        <label for="autoClearTimeoutInput">Auto-clear after inactivity (seconds, 0 = disabled)</label>
+                        <input type="number" id="autoClearTimeoutInput" min="0" max="300" step="1" value="0" />
+                        <div style="font-size: 11px; color: #ccc; margin-top: 4px">
+                            Automatically clear DPS data after this many seconds of no damage. Set to 0 to disable.
+                        </div>
+                    </div>
                     <!-- Max Players slider removed per request -->
                     <div class="settings-option">
                         <label for="hideHpsToggle">Hide HPS bar</label>

@@ -32,15 +32,15 @@ You'll need to have the following software installed:
 - ~~Loading screen sometimes takes a while to go away~~
 - ~~Fix x number of players in window instead of static height~~
 - ~~Fix "finding server" message only disappearing after finding someone and not server~~
+- Add grace period before resetting after server change
 - Customizable hotkeys
-- Skill icons
-- More skill info on breakdown (crit rate, luck rate)
+- Remake skill breakdown with: Skill icons, more info (crit rate, luck rate), individual window
 - ~~Class name on skill breakdown~~
 - Self updater
-- Export to excel/CSV
+- Export to excel/CSV, on 1m 3m and total
 - Players in AOI bubble
 - ~~Change buttons from labels to icons~~
-- Delay clear to next DPS update instead of immediate and improve timeout detection (Full and single reset are desynced causing dps on user to be lower?), fix pause detection (on tina end specifically, void guy?)
+- ~~Delay clear to next DPS update instead of immediate and improve timeout detection (Full and single reset are desynced causing dps on user to be lower?), fix pause detection (on tina end specifically, void guy?)~~
 - Capture packets related to party, dungeon and current boss fight
 - Smaller window that would sit on top of party with simple dps/hps numbers
 - Translate mob names

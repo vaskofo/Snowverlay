@@ -5,8 +5,10 @@ class Config {
         this.ENABLE_DEBUG_LOGS = false;
         this.IS_PAUSED = false;
         this.GLOBAL_SETTINGS = {
+            disableUiFreezeOnInactivity: false,
             autoClearOnServerChange: true,
-            autoClearOnTimeout: false,
+            autoClearTimeoutSeconds: 0,
+            disableUserTimeout: true,
             onlyRecordEliteDummy: false,
             hideHpsBar: true,
             hideMitigationBar: false,

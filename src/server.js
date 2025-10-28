@@ -15,7 +15,6 @@ import { config } from './config.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const SETTINGS_PATH = path.join(__dirname, 'settings.json');
-let isPaused = false;
 const globalSettings = config.GLOBAL_SETTINGS;
 
 class Server {
@@ -31,7 +30,7 @@ class Server {
                 app.use(cors());
                 app.use(express.static(path.join(__dirname, 'public')));
 
-                const apiRouter = createApiRouter(isPaused, SETTINGS_PATH, globalSettings);
+                const apiRouter = createApiRouter(SETTINGS_PATH, globalSettings);
                 app.use('/api', apiRouter);
 
                 this.server = http.createServer(app);
@@ -65,11 +64,10 @@ class Server {
 
     _configureSocketEmitter() {
         setInterval(() => {
-            if (!isPaused) {
-                userDataManager.updateAllRealtimeDps();
-                const userData = userDataManager.getAllUsersData();
-                socket.emit('data', { code: 0, user: userData });
-            }
+            userDataManager.updateAllRealtimeDps();
+            const userData = userDataManager.getAllUsersData();
+            const meta = userDataManager.getMeta();
+            socket.emit('data', { code: 0, user: userData, meta: { ...meta, paused: !!config.IS_PAUSED } });
         }, 100);
     }
 
