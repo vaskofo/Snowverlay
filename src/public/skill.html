@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Skill Breakdown</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="style.css" />
+        <style>
+            body {
+                margin: 0;
+            }
+            .header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                -webkit-app-region: drag;
+            }
+            .header .button-group {
+                -webkit-app-region: no-drag;
+            }
+            .user-info {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .user-name {
+                font-weight: 700;
+                font-size: 16px;
+            }
+            .user-stats {
+                color: #bbb;
+                font-size: 12px;
+            }
+            .table-wrap {
+                overflow: auto;
+                border-radius: 6px;
+                padding: 0;
+                background: rgba(0, 0, 0, calc(var(--main-bg-opacity, 0.6) * 0.6));
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 13px;
+                table-layout: fixed;
+                background: transparent;
+            }
+            thead th {
+                position: sticky;
+                top: 0;
+                background: rgba(18, 21, 23, 0.85);
+                cursor: pointer;
+                user-select: none;
+                z-index: 1;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                padding: 6px 8px;
+            }
+            th,
+            td {
+                padding: 4px 6px;
+                text-align: left;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            }
+            tbody tr:hover {
+                background: rgba(255, 255, 255, 0.04);
+            }
+            .right {
+                text-align: right;
+            }
+            .muted {
+                color: #bbb;
+            }
+            .btn {
+                background: rgba(255, 255, 255, 0.1);
+                color: #fff;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                padding: 4px 10px;
+                border-radius: 6px;
+                cursor: pointer;
+            }
+            .btn:hover {
+                background: rgba(255, 255, 255, 0.2);
+            }
+            .sort-ind {
+                margin-left: 4px;
+                opacity: 0.7;
+            }
+            table,
+            thead,
+            tbody,
+            th,
+            td {
+                -webkit-app-region: no-drag;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="app-wrapper">
+            <div class="main-container">
+                <div class="controls header" style="min-height: 28px; height: 28px; padding: 6px 10px">
+                    <div class="title-container">
+                        <span class="app-title">Skills</span>
+                    </div>
+                    <div class="button-group">
+                        <button class="btn" id="btnClose">Close</button>
+                    </div>
+                </div>
+                <div style="padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 8px">
+                    <div class="user-info">
+                        <img id="classIcon" class="class-icon skill-class-icon hidden" src="" alt="" />
+                        <div style="display: flex; flex-direction: column; gap: 2px">
+                            <div id="userName" class="user-name">Loading...</div>
+                            <div id="userClass" class="user-stats"></div>
+                            <div id="userStats" class="user-stats"></div>
+                        </div>
+                    </div>
+                    <div class="table-wrap">
+                        <table id="skillTable">
+                            <colgroup>
+                                <col style="width: 26%" />
+                                <col style="width: 14%" />
+                                <col style="width: 12%" />
+                                <col style="width: 10%" />
+                                <col style="width: 9%" />
+                                <col style="width: 9%" />
+                                <col style="width: 8%" />
+                                <col style="width: 8%" />
+                                <col style="width: 8%" />
+                                <col style="width: 8%" />
+                                <col style="width: 8%" />
+                            </colgroup>
+                            <thead>
+                                <tr>
+                                    <th data-key="displayName">Skill</th>
+                                    <th class="right" data-key="percent">%</th>
+                                    <th class="right" data-key="totalDamage">Total</th>
+                                    <th class="right" data-key="dps">DPS</th>
+                                    <th class="right" data-key="totalCasts">Casts</th>
+                                    <th class="right" data-key="castsPerSecond">CPS</th>
+                                    <th class="right" data-key="critRate">Crit %</th>
+                                    <th class="right" data-key="luckyRate">Lucky %</th>
+                                    <th class="right" data-key="avgHit">Avg</th>
+                                    <th class="right" data-key="minHit">Min</th>
+                                    <th class="right" data-key="maxHit">Max</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script src="socket.io.min.js"></script>
+        <script src="skill.js"></script>
+    </body>
+</html>

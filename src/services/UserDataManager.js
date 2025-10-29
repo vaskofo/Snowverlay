@@ -301,12 +301,18 @@ class UserDataManager {
     getUserSkillData(uid) {
         const user = this.users.get(uid);
         if (!user) return null;
+        const totalDps = user.getTotalDps(this.groupEffectiveElapsedMs);
         return {
             uid: user.uid,
             name: user.name,
             profession: user.profession + (user.subProfession ? `-${user.subProfession}` : ''),
             skills: user.getSkillSummary(),
             attr: user.attr,
+            total: {
+                damage: user.damageStats?.stats?.total || 0,
+                dps: totalDps || 0,
+            },
+            durationMs: this.groupEffectiveElapsedMs,
         };
     }
 

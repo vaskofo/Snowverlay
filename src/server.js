@@ -67,7 +67,11 @@ class Server {
             userDataManager.updateAllRealtimeDps();
             const userData = userDataManager.getAllUsersData();
             const meta = userDataManager.getMeta();
-            socket.emit('data', { code: 0, user: userData, meta: { ...meta, paused: !!config.IS_PAUSED } });
+            socket.emit('data', {
+                code: 0,
+                user: userData,
+                meta: { ...meta, paused: !!config.IS_PAUSED, backgroundOpacity: globalSettings.backgroundOpacity },
+            });
         }, 100);
     }
 

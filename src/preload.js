@@ -9,4 +9,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setWindowSize: (width, height) => ipcRenderer.send('set-window-size', { width, height }),
     onWindowResized: (callback) => ipcRenderer.on('window-resized', (_event, bounds) => callback(bounds)),
     getVersion: () => ipcRenderer.invoke('get-app-version'),
+    openSkillWindow: (uid) => ipcRenderer.send('open-skill-window', uid),
 });

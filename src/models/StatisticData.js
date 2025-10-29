@@ -10,6 +10,8 @@ export class StatisticData {
             crit_lucky: 0,
             hpLessen: 0,
             total: 0,
+            minHit: Infinity,
+            maxHit: 0,
         };
         this.count = {
             normal: 0,
@@ -47,6 +49,11 @@ export class StatisticData {
         }
         this.stats.total += value;
         this.stats.hpLessen += hpLessenValue;
+
+        if (typeof value === 'number' && isFinite(value)) {
+            if (value > this.stats.maxHit) this.stats.maxHit = value;
+            if (value < this.stats.minHit) this.stats.minHit = value;
+        }
 
         if (isCrit) {
             this.count.critical++;
@@ -105,6 +112,8 @@ export class StatisticData {
             crit_lucky: 0,
             hpLessen: 0,
             total: 0,
+            minHit: Infinity,
+            maxHit: 0,
         };
         this.count = {
             normal: 0,

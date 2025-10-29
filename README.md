@@ -29,12 +29,14 @@ You'll need to have the following software installed:
 - **Npcap**: The installer is located in the `/resources` folder of this repository.
 
 ### To-do
+
 - ~~Loading screen sometimes takes a while to go away~~
 - ~~Fix x number of players in window instead of static height~~
 - ~~Fix "finding server" message only disappearing after finding someone and not server~~
 - Add grace period before resetting after server change
 - Customizable hotkeys
 - Remake skill breakdown with: Skill icons, more info (crit rate, luck rate), individual window
+- Change starting overlay to a footer message
 - ~~Class name on skill breakdown~~
 - Self updater
 - Export to excel/CSV, on 1m 3m and total
@@ -62,21 +64,25 @@ You'll need to have the following software installed:
     ```
 
 3.  **Install Npcap:**
+
     - Navigate to the `resources` folder: `cd resources`
     - Run the Npcap installer. Be sure to select the option to **"Install Npcap in WinPcap API-compatible Mode"** during installation.
     - After installation, return to the project root: `cd ..`
 
 4.  **Install Node.js dependencies:**
+
     ```bash
     npm install
     ```
 
-5. **Run the application in development mode:**
+5.  **Run the application in development mode:**
+
     ```bash
     npm start
     ```
 
-6. **Optionally, build the application:**
+6.  **Optionally, build the application:**
+
     ```bash
     npm run make
     ```

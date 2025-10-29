@@ -1,5 +1,6 @@
 import { app, ipcMain, globalShortcut } from 'electron';
 import window from './Window.js';
+import skillWindows from './SkillWindows.js';
 
 ipcMain.on('close-client', (event) => {
     app.quit();
@@ -58,5 +59,16 @@ ipcMain.handle('get-app-version', () => {
         return app.getVersion?.() || '';
     } catch (e) {
         return '';
+    }
+});
+
+// Open per-user skill breakdown window
+ipcMain.on('open-skill-window', (event, uid) => {
+    try {
+        if (typeof uid === 'string') uid = parseInt(uid, 10);
+        if (Number.isNaN(uid)) return;
+        skillWindows.open(uid);
+    } catch (e) {
+        console.error('Failed to open skill window:', e);
     }
 });

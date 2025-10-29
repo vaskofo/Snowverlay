@@ -221,6 +221,10 @@ export class UserData {
                 castsPerSecond = stat.count.total / durationSec;
             }
 
+            const minHit = Number.isFinite(stat.stats.minHit) ? stat.stats.minHit : 0;
+            const maxHit = Number.isFinite(stat.stats.maxHit) ? stat.stats.maxHit : 0;
+            const avgHit = stat.count.total > 0 ? stat.stats.total / stat.count.total : 0;
+
             skills[skillId] = {
                 displayName: name,
                 type: stat.type,
@@ -236,6 +240,9 @@ export class UserData {
                 luckyRate: luckyRate,
                 damageBreakdown: { ...stat.stats },
                 countBreakdown: { ...stat.count },
+                minHit,
+                maxHit,
+                avgHit,
             };
         }
         return skills;

@@ -675,7 +675,15 @@ dpsListContainer.addEventListener('click', (e) => {
     if (!item) return;
     const uid = item.dataset.uid;
     if (!uid) return;
-    showSkillDetails(Number(uid));
+    try {
+        if (window.electronAPI && typeof window.electronAPI.openSkillWindow === 'function') {
+            window.electronAPI.openSkillWindow(Number(uid));
+        } else {
+            showSkillDetails(Number(uid));
+        }
+    } catch (_) {
+        showSkillDetails(Number(uid));
+    }
 });
 
 // Pause rendering when hovering over the meter to allow clicks

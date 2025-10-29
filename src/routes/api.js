@@ -77,9 +77,11 @@ export function createApiRouter(SETTINGS_PATH, globalSettings = {}) {
             });
         }
 
+        const meta = userDataManager.getMeta();
         res.json({
             code: 0,
             data: skillData,
+            meta: { ...meta, paused: !!config.IS_PAUSED },
         });
     });
 
